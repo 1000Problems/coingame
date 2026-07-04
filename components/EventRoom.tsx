@@ -7,6 +7,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { priceLabel } from "@/lib/format";
 import { chipTextColor, FALLBACK_COIN_COLOR } from "@/lib/colors";
+import { COIN_INFO } from "@/lib/coininfo";
+import CoinCard from "@/components/CoinCard";
 
 type Alloc = { symbol: string; units: number };
 type Standing = {
@@ -45,6 +47,7 @@ export default function EventRoom({
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [draft, setDraft] = useState("");
   const [err, setErr] = useState("");
+  const [infoFor, setInfoFor] = useState<string | null>(null);
   const cursor = useRef<string | null>(null);
   const seen = useRef<Set<string>>(new Set());
   const chatEnd = useRef<HTMLDivElement | null>(null);
@@ -140,8 +143,14 @@ export default function EventRoom({
           <div className="rows">
             {mine.allocations.map((a) => {
               const q = data.quotes.find((x) => x.symbol === a.symbol);
+              const hasInfo = Boolean(COIN_INFO[a.symbol]);
               return (
-                <div key={a.symbol} className="row">
+                <div
+                  key={a.symbol}
+                  className="row"
+                  style={hasInfo ? { cursor: "pointer" } : undefined}
+                  onClick={hasInfo ? () => setInfoFor(a.symbol) : undefined}
+                >
                   <span className="who">{a.symbol}</span>
                   <span className="tiny">${a.units * 100}</span>
                   <span className="val">{q ? priceLabel(q.price) : "—"}</span>
@@ -212,6 +221,15 @@ export default function EventRoom({
           </form>
           <p className="err">{err}</p>
         </div>
+      ) : null}
+      {infoFor ? (
+        <CoinCard
+          symbol={infoFor}
+          color={colorOf(infoFor)}
+          price={data.quotes.find((q) => q.symbol === infoFor)?.price}
+          pct={data.quotes.find((q) => q.symbol === infoFor)?.pct}
+          onClose={() => setInfoFor(null)}
+        />
       ) : null}
     </>
   );

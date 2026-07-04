@@ -14,6 +14,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { priceLabel } from "@/lib/format";
 import { chipTextColor, FALLBACK_COIN_COLOR } from "@/lib/colors";
+import { COIN_INFO } from "@/lib/coininfo";
+import CoinCard from "@/components/CoinCard";
 
 type Quote = { symbol: string; price: number; pct: number };
 type Alloc = { symbol: string; units: number };
@@ -38,6 +40,7 @@ export default function PickScreen({
   const [err, setErr] = useState("");
   const [locking, setLocking] = useState(false);
   const [countdown, setCountdown] = useState("");
+  const [infoFor, setInfoFor] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const colorOf = useCallback(
@@ -239,6 +242,9 @@ export default function PickScreen({
                 </span>
                 <span className="priceline">{priceLabel(q.price)} · 24h</span>
               </button>
+              {COIN_INFO[q.symbol] ? (
+                <button className="infobtn" onClick={() => setInfoFor(q.symbol)} aria-label={`About ${q.symbol}`}>i</button>
+              ) : null}
               {sel ? (
                 <span className="tilestep">
                   <button className="stepbtn minus" onClick={() => step(q.symbol, -1)}>−</button>
@@ -261,6 +267,15 @@ export default function PickScreen({
         − to $0 removes a pick. Locking is final — it opens the room, where
         you&apos;ll see everyone else&apos;s picks. The ride starts at midnight ET.
       </p>
+      {infoFor ? (
+        <CoinCard
+          symbol={infoFor}
+          color={colorOf(infoFor)}
+          price={quotes.find((q) => q.symbol === infoFor)?.price}
+          pct={quotes.find((q) => q.symbol === infoFor)?.pct}
+          onClose={() => setInfoFor(null)}
+        />
+      ) : null}
     </div>
   );
 }
