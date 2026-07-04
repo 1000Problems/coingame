@@ -198,27 +198,31 @@ export default function PickScreen({
       </div>
 
       <div className="howto">
-        <p className="howto-hook">Split $1,000 across your coins. The biggest bag at 4PM takes the daily trophy.</p>
+        <p className="howto-hook">
+          <b>If you had $1,000 to bet on crypto today — which coins would you pick?</b>
+          Spread your stack across the coins you think will climb. Whoever&apos;s bag
+          grows the most by 4:00 PM ET wins the daily trophy. Play money, real bragging rights.
+        </p>
         <div className="howto-steps">
           <div className="howto-step">
             <span className="howto-n">1</span>
             <div>
-              <b>Split it</b>
-              <span>$1,000 across 3–10 coins</span>
+              <b>Load your bag</b>
+              <span>Split $1,000 across 3–10 coins</span>
             </div>
           </div>
           <div className="howto-step">
             <span className="howto-n">2</span>
             <div>
               <b>Locks 12:00 AM ET</b>
-              <span>picks freeze — no changes</span>
+              <span>Picks freeze — no changes</span>
             </div>
           </div>
           <div className="howto-step">
             <span className="howto-n">3</span>
             <div>
-              <b>Cash out 4:00 PM ET</b>
-              <span>top bag wins the trophy</span>
+              <b>Biggest gain wins</b>
+              <span>Top bag at 4:00 PM ET takes it</span>
             </div>
           </div>
         </div>
