@@ -19,6 +19,7 @@ export type StandingRow = {
   pct: number; // vs $1,000, 2dp
   placement: number;
   allocations: Allocation[];
+  lockedAt: string | null; // tiebreak is public: equal bags → earlier lock wins
 };
 
 /**
@@ -52,7 +53,12 @@ export async function liveStandings(roomId: string, event: EventRow, now = new D
     allocations: m.allocations,
     valueCents: liveValueCents(m.allocations, event.event_date, now),
   }));
-  rows.sort((a, b) => b.valueCents - a.valueCents || a.lockedAt.localeCompare(b.lockedAt));
+  // value desc, earlier lock, then playerId — fully deterministic (ISO strings
+  // truncate to ms; concurrent bot locks can collide).
+  rows.sort((a, b) =>
+    b.valueCents - a.valueCents ||
+    a.lockedAt.localeCompare(b.lockedAt) ||
+    a.playerId.localeCompare(b.playerId));
   return rows.map((r, i) => ({
     playerId: r.playerId,
     displayName: r.displayName,
@@ -61,6 +67,7 @@ export async function liveStandings(roomId: string, event: EventRow, now = new D
     pct: Math.round(((r.valueCents - START_CENTS) / START_CENTS) * 10000) / 100,
     placement: i + 1,
     allocations: r.allocations,
+    lockedAt: r.lockedAt,
   }));
 }
 
@@ -134,7 +141,7 @@ export async function postChat(
 
 export async function finalBoard(roomId: string, eventRef: string): Promise<StandingRow[]> {
   const rows = await sql`
-    select b.player_id, b.final_cents, b.placement, pl.display_name, pl.avatar_url, p.allocations
+    select b.player_id, b.final_cents, b.placement, pl.display_name, pl.avatar_url, p.allocations, p.locked_at
     from coingame_board b
     join coingame_player pl on pl.player_id = b.player_id
     left join coingame_pick p on p.room_id = b.room_id and p.event_ref = b.event_ref and p.player_id = b.player_id
@@ -148,5 +155,6 @@ export async function finalBoard(roomId: string, eventRef: string): Promise<Stan
     pct: Math.round(((Number(r.final_cents) - START_CENTS) / START_CENTS) * 10000) / 100,
     placement: Number(r.placement),
     allocations: (r.allocations ?? []) as Allocation[],
+    lockedAt: r.locked_at ? new Date(String(r.locked_at)).toISOString() : null,
   }));
 }

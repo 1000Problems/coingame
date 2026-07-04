@@ -25,12 +25,13 @@ export default async function Home({
       <main className="wrap">
         <div className="topbar"><span className="brand">1K Daily</span></div>
         <div className="card">
-          <h2>Pick 3 coins · split a grand · fastest bag wins</h2>
+          <h2>Pick 3–10 coins · split a grand · fastest bag wins</h2>
           <p className="muted">
-            Every single day: choose three coins from the pool, split $1,000
-            across them in $100 chips, and lock it in before midnight ET.
+            Every single day: choose three to ten coins from the pool, split
+            $1,000 across them in $100 chips, and lock it in before midnight ET.
             Midnight is the start gun — your bag rides to the 4pm mark, the
-            room re-ranks live, and the top bag takes the daily trophy.
+            room re-ranks live, and the top bag takes the daily trophy. Tied
+            bags go to whoever locked first.
           </p>
           <p className="muted">Launch this game from your PickCity room to play.</p>
         </div>

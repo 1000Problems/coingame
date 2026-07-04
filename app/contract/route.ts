@@ -9,7 +9,7 @@ export async function GET() {
     contract: 2,
     display: {
       name: "1K Daily",
-      blurb: "Pick 3 coins · split a grand · fastest bag wins",
+      blurb: "Pick 3–10 coins · split a grand · fastest bag wins",
     },
     allowsPrivate: true,
   });

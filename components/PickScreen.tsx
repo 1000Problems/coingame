@@ -4,11 +4,13 @@
 // $1,000 chip bar in per-coin brand colors, 2-col tile grid with steppers, and
 // a footer status line + irreversible lock (with confirm).
 //
-// Deliberate deltas from the mockup (TASK-coingame-07, -08):
+// Deliberate deltas from the mockup (TASK-coingame-07, -08, -10):
 //   - per-coin fixed colors everywhere, NOT slot colors
 //   - the − stepper is the ONLY deselect: stepping to $0 removes the pick
 //     (tile tap is select-only — no accidental unit-nuking taps)
 //   - drafts autosave (product behavior the mockup didn't model)
+//   - 3..10 coins (TASK-coingame-10): a new selection takes 1 chip; selecting
+//     is blocked at $0 unallocated (free a chip first). No auto-seeding.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -21,6 +23,7 @@ type Quote = { symbol: string; price: number; pct: number };
 type Alloc = { symbol: string; units: number };
 
 const TOTAL_UNITS = 10;
+const MIN_COINS = 3;
 
 export default function PickScreen({
   eventRef, dateLabel, locksAt, quotes: initialQuotes, draft, colors,
@@ -80,7 +83,8 @@ export default function PickScreen({
   const selected = useMemo(() => [...alloc.keys()], [alloc]);
   const used = useMemo(() => [...alloc.values()].reduce((a, b) => a + b, 0), [alloc]);
   const remaining = TOTAL_UNITS - used;
-  const valid = selected.length === 3 && used === TOTAL_UNITS;
+  // Max 10 is self-capping: 10 coins × ≥1 chip = all 10 chips.
+  const valid = selected.length >= MIN_COINS && used === TOTAL_UNITS;
 
   // The 10 segments, filled in selection order: [{symbol}...] then nulls.
   const segments = useMemo(() => {
@@ -93,7 +97,7 @@ export default function PickScreen({
   const scheduleSave = useCallback((next: Map<string, number>) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     const entries = [...next.entries()];
-    if (entries.length !== 3 || entries.reduce((a, [, u]) => a + u, 0) !== TOTAL_UNITS) return;
+    if (entries.length < MIN_COINS || entries.reduce((a, [, u]) => a + u, 0) !== TOTAL_UNITS) return;
     saveTimer.current = setTimeout(async () => {
       try {
         const r = await fetch("/api/pick", {
@@ -114,20 +118,10 @@ export default function PickScreen({
     setErr("");
     setAlloc((prev) => {
       if (prev.has(symbol)) return prev; // select-only; − to $0 is the deselect
-      if (prev.size >= 3) return prev;   // pick exactly 3
+      const others = [...prev.values()].reduce((a, b) => a + b, 0);
+      if (others >= TOTAL_UNITS) return prev; // no free chip — free one first
       const next = new Map(prev);
-      const others = [...next.values()].reduce((a, b) => a + b, 0);
-      next.set(symbol, 0);
-      if (next.size === 3) {
-        if (others === 0) {
-          // Fresh flow: seed sensible defaults 4/3/3.
-          const syms = [...next.keys()];
-          next.set(syms[0], 4); next.set(syms[1], 3); next.set(syms[2], 3);
-        } else {
-          // Re-pick after a − unselect: the newcomer inherits the freed budget.
-          next.set(symbol, TOTAL_UNITS - others);
-        }
-      }
+      next.set(symbol, 1); // a new pick takes exactly one $100 chip
       scheduleSave(next);
       return next;
     });
@@ -180,11 +174,11 @@ export default function PickScreen({
   }
 
   const statusLine =
-    selected.length < 3
-      ? `Pick ${3 - selected.length} more coin${selected.length === 2 ? "" : "s"}`
+    selected.length < MIN_COINS
+      ? `Pick ${MIN_COINS - selected.length} more coin${MIN_COINS - selected.length === 1 ? "" : "s"} (3–10 total)`
       : remaining > 0
         ? `$${remaining * 100} still on the sidelines`
-        : "All $1,000 allocated — ready to lock";
+        : `All $1,000 in — ${selected.length} coin${selected.length === 1 ? "" : "s"}, ready to lock`;
 
   return (
     <div className="pickcard">
@@ -225,7 +219,7 @@ export default function PickScreen({
       <div className="pooltiles">
         {quotes.map((q) => {
           const sel = alloc.has(q.symbol);
-          const faded = !sel && selected.length >= 3;
+          const faded = !sel && remaining <= 0; // no chip free → can't join
           return (
             <div
               key={q.symbol}
@@ -264,8 +258,10 @@ export default function PickScreen({
         </button>
       </div>
       <p className="tiny" style={{ padding: "0 26px 18px", margin: 0 }}>
-        − to $0 removes a pick. Locking is final — it opens the room, where
-        you&apos;ll see everyone else&apos;s picks. The ride starts at midnight ET.
+        Pick 3–10 coins; a new pick takes a $100 chip, − to $0 removes one.
+        Locking is final — it opens the room, where you&apos;ll see everyone
+        else&apos;s picks. The ride starts at midnight ET, and if bags tie,
+        the earlier lock wins.
       </p>
       {infoFor ? (
         <CoinCard

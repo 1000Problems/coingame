@@ -14,6 +14,7 @@ type Alloc = { symbol: string; units: number };
 type Standing = {
   playerId: string; displayName: string; avatarUrl: string | null;
   valueCents: number; pct: number; placement: number; allocations: Alloc[];
+  lockedAt: string | null;
 };
 type Quote = { symbol: string; price: number; pct: number };
 type Msg = { id: string; playerId: string; displayName: string; body: string; createdAt: string };
@@ -29,6 +30,15 @@ type RoomPayload = {
   me: { playerId: string; locked: boolean };
   error?: string;
 };
+
+const lockFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York", hour: "numeric", minute: "2-digit", second: "2-digit",
+});
+function lockTimeET(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : `${lockFmt.format(d)} ET`;
+}
 
 function dollars(cents: number): string {
   const d = Math.floor(Math.abs(cents) / 100);
@@ -131,7 +141,10 @@ export default function EventRoom({
               <span className={mine.pct >= 0 ? "pos" : "neg"} style={{ fontSize: 14 }}>
                 {mine.pct >= 0 ? "+" : ""}{mine.pct.toFixed(2)}%
               </span>{" "}
-              <span className="tiny">· you&apos;re #{mine.placement}</span>
+              <span className="tiny">
+                · you&apos;re #{mine.placement}
+                {lockTimeET(mine.lockedAt) ? ` · 🔒 ${lockTimeET(mine.lockedAt)}` : ""}
+              </span>
             </p>
           </>
         ) : null}
@@ -166,7 +179,10 @@ export default function EventRoom({
 
       <div className="card">
         <h2>{data.closed ? "Final board" : "Room standings"}</h2>
-        <p className="tiny">{data.standings.length} player{data.standings.length === 1 ? "" : "s"}{data.closed ? "" : " · re-ranks live"}</p>
+        <p className="tiny">
+          {data.standings.length} player{data.standings.length === 1 ? "" : "s"}
+          {data.closed ? "" : " · re-ranks live"} · equal bags? the earlier 🔒 wins
+        </p>
         <div className="rows">
           {data.standings.map((s) => (
             <div key={s.playerId} className={`row${s.playerId === me ? " me" : ""}${data.closed && s.placement === 1 ? " winner" : ""}`}>
@@ -177,7 +193,12 @@ export default function EventRoom({
               ) : (
                 <span className="avatar" />
               )}
-              <span className="who">{data.closed && s.placement === 1 ? "🏆 " : ""}{s.displayName}{s.playerId === me ? " (you)" : ""}</span>
+              <span className="who">
+                {data.closed && s.placement === 1 ? "🏆 " : ""}{s.displayName}{s.playerId === me ? " (you)" : ""}
+                {lockTimeET(s.lockedAt) ? (
+                  <span className="tiny" style={{ display: "block", fontWeight: 400 }}>🔒 {lockTimeET(s.lockedAt)}</span>
+                ) : null}
+              </span>
               <span className="chips">
                 {s.allocations.map((a) => (
                   <span

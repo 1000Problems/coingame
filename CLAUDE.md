@@ -62,8 +62,9 @@ is pinged by a Cowork scheduled task; lazy-first settlement on reads does the re
 - `lib/events.ts` — event engine. Invariant: `ensureEvents(2)` keeps the next 2 calendar
   days open, idempotently, on every read. Phase (open|locked|adjudicating|closed) is
   **computed from clock + `closed_at`**, never stored.
-- `lib/picks.ts` — draft/lock rules: exactly 3 coins, integer units 1..8 summing to 10,
-  all in the event pool, hard-rejected after `locks_at`. Lock is irreversible.
+- `lib/picks.ts` — draft/lock rules: 3–10 coins (TASK-coingame-10), integer units ≥ 1
+  summing to 10, all in the event pool, hard-rejected after `locks_at`. Lock is
+  irreversible; ranks tie-break by earlier `locked_at`, then `player_id`.
 - Pool is 10 coins, each with a fixed brand color (`coingame_coin.color`) used
   identically on every screen; pick screen is the 1c "Split Bar" design
   (TASK-coingame-07). `lib/colors.ts` picks readable chip text per background.

@@ -73,8 +73,13 @@ export async function settleAndClose(ref: string): Promise<{ ran: boolean }> {
         finalCents: cents,
       };
     });
-    // Stable rank: value desc, earlier lock wins ties (exactly one placement 1).
-    scored.sort((a, b) => b.finalCents - a.finalCents || a.lockedAt.localeCompare(b.lockedAt));
+    // Stable rank: value desc, earlier lock wins ties, playerId last — fully
+    // deterministic even if two locks land in the same millisecond (ISO strings
+    // truncate to ms). Exactly one placement 1, always.
+    scored.sort((a, b) =>
+      b.finalCents - a.finalCents ||
+      a.lockedAt.localeCompare(b.lockedAt) ||
+      a.playerId.localeCompare(b.playerId));
 
     const results: { playerId: string; points: number; placement: number }[] = [];
     for (let i = 0; i < scored.length; i++) {

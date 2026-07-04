@@ -13,9 +13,12 @@ Every calendar day is one **event** — crypto never closes, so neither do we: n
 no holidays, 365 trophies a year. **The next two days always have an open event**
 (`ensureEvents(2)`). From the curated pool (**10 coins: top 10 by market cap,
 stablecoins/pegged excluded, LEO and ZEC swapped for LINK and HBAR** — see
-TASK-coingame-07), a player picks **exactly 3 coins**
-and splits **$1,000 in $100 units** (10 units) across them — notional chips, so it never
-matters that a whole BTC costs six figures. Picks start as a **private draft**; hitting
+TASK-coingame-07), a player picks **3 to 10 coins** (TASK-coingame-10; was exactly 3 —
+widened to shrink identical-portfolio collisions, since PickCity needs exactly one #1)
+and splits **$1,000 in $100 units** (10 units, each pick gets ≥1) across them — notional
+chips, so it never matters that a whole BTC costs six figures. The all-10 "index" pick
+is legal by decision of record: it forces 1 chip each, everyone who plays it ties, and
+the earliest-lock tiebreak settles it. Picks start as a **private draft**; hitting
 **Lock it in** is the real, irreversible commit — and the ticket into that event's room
 (chat, roster, everyone else's picks). You can't see other people's selections until your
 own are locked, so nobody copies. **Midnight ET is the deadline AND the start gun**: at
@@ -109,7 +112,9 @@ Unchanged mechanics, new window:
 
 - Only locked picks play; drafts alive at `locks_at` die unscored.
 - Per pick: `final = Σ units × $100 × (end_price / start_price)`, in cents.
-- Board per instance: rank by `final_cents` desc; tie → earlier `locked_at` wins.
+- Board per instance: rank by `final_cents` desc; tie → earlier `locked_at` wins;
+  same millisecond → `player_id` asc (deterministic, exactly one placement 1).
+  Lock times are shown in the room so the tiebreak is legible, not folklore.
 - `event-close` per instance: `points = final_cents`, whole board, every participant.
 - No `game-close`, ever. `/events` top-level phase permanently `"open"`.
 
@@ -139,11 +144,11 @@ zero-traffic sweeper. One new wrinkle: start-price settlement also runs lazily �
 
 Unchanged surface. Deltas only:
 
-- `GET /contract` → `{ contract: 2, display: { name: "1K Daily", blurb: "Pick 3 coins ·
+- `GET /contract` → `{ contract: 2, display: { name: "1K Daily", blurb: "Pick 3–10 coins ·
   split a grand · fastest bag wins" }, allowsPrivate: true }`
 - `/events` labels: `Coin Picks · Sat, Jul 4`. Refs stay `d-YYYY-MM-DD` — now dense
   (every date), which no consumer cares about.
-- `POST /api/pick` validation message: "pick exactly 3 coins".
+- `POST /api/pick` validation messages: "pick at least 3 coins" / "pick at most 10 coins".
 - All JSON APIs, spine verbs, avatar rule, outbox/HMAC behavior: identical.
 
 ## Opinions baked in (flagging, not hiding)
