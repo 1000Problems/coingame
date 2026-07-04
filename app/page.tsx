@@ -25,12 +25,12 @@ export default async function Home({
       <main className="wrap">
         <div className="topbar"><span className="brand">1K Daily</span></div>
         <div className="card">
-          <h2>Pick 3 · split a grand · fastest bag wins</h2>
+          <h2>Pick 3 coins · split a grand · fastest bag wins</h2>
           <p className="muted">
-            Every trading day: choose three stocks from the pool, split $1,000
-            across them in $100 chips, and lock it in. Your picks ride the day
-            from open to close — the room re-ranks live, the top bag takes the
-            daily trophy.
+            Every single day: choose three coins from the pool, split $1,000
+            across them in $100 chips, and lock it in before midnight ET.
+            Midnight is the start gun — your bag rides to the 4pm mark, the
+            room re-ranks live, and the top bag takes the daily trophy.
           </p>
           <p className="muted">Launch this game from your PickCity room to play.</p>
         </div>
@@ -59,7 +59,7 @@ export default async function Home({
           const phase = phaseOf(e, now);
           return (
             <Link key={e.ref} href={`/e/${encodeURIComponent(e.ref)}`}>
-              <span>Stock Picks · {labelFor(e.trading_date)}</span>
+              <span>Coin Picks · {labelFor(e.event_date)}</span>
               <span className={`pill ${phase}`}>{phase}</span>
             </Link>
           );

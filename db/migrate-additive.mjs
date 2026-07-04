@@ -18,16 +18,21 @@ function loadDatabaseUrl() {
   throw new Error("DATABASE_URL not set (env or .env.local)");
 }
 
+// COIN PIVOT NOTE (2026-07-04): the pivot RENAMED objects (coingame_ticker →
+// coingame_coin; trading_date → event_date; prev_close/open_price/close_price →
+// ref_price/start_price/end_price). Additive statements below create the NEW
+// shapes only. A pre-pivot DB (stock-era test data, disposable by design) must
+// be rebuilt once with db/schema.sql; this script stays the safe path forever after.
 const statements = [
-  `create table if not exists coingame_ticker (
-     symbol text primary key,
-     name   text not null,
-     sector text,
-     active boolean not null default true
+  `create table if not exists coingame_coin (
+     symbol   text primary key,
+     name     text not null,
+     category text,
+     active   boolean not null default true
    )`,
   `create table if not exists coingame_event (
      ref          text primary key,
-     trading_date date not null unique,
+     event_date   date not null unique,
      locks_at     timestamptz not null,
      settles_at   timestamptz not null,
      trophy_label text not null,
@@ -38,9 +43,9 @@ const statements = [
   `create table if not exists coingame_event_pool (
      event_ref   text not null references coingame_event(ref) on delete cascade,
      symbol      text not null,
-     prev_close  numeric(12,4),
-     open_price  numeric(12,4),
-     close_price numeric(12,4),
+     ref_price   numeric(20,8),
+     start_price numeric(20,8),
+     end_price   numeric(20,8),
      primary key (event_ref, symbol)
    )`,
   `create table if not exists coingame_instance (

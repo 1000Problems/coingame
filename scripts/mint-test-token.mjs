@@ -24,7 +24,7 @@ if (!key) {
 }
 
 const [playerId = "p_test0000000001", roomId = "room-local-test", eventRef] = process.argv.slice(2);
-const app = env("NEXT_PUBLIC_APP_URL") ?? "http://localhost:3000";
+const app = env("APP_URL") ?? "http://localhost:3000"; // optional override for testing a deployed URL
 
 const b64u = (obj) => Buffer.from(JSON.stringify(obj)).toString("base64url");
 const header = b64u({ alg: "HS256", typ: "JWT" });

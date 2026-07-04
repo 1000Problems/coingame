@@ -20,4 +20,4 @@ if (/\b(insert\s+into|update|delete\s+from)\s+(?!coingame_)[a-z_"]/i.test(text))
 }
 const sql = neon(loadDatabaseUrl());
 await sql(text);
-console.log("seeded coingame_ticker.");
+console.log("seeded coingame_coin.");

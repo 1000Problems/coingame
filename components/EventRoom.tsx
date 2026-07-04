@@ -5,6 +5,7 @@
 // Lock-gated server-side; this component assumes admission.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { priceLabel } from "@/lib/format";
 
 type Alloc = { symbol: string; units: number };
 type Standing = {
@@ -96,9 +97,9 @@ export default function EventRoom({
 
   const mine = data.standings.find((s) => s.playerId === me);
   const statusLine =
-    data.phase === "open" ? "Waiting for the open — picks are in." :
-    data.phase === "locked" ? "Live — riding the day." :
-    data.phase === "adjudicating" ? "Closing bell — settling the board…" :
+    data.phase === "open" ? "Picks are in — the ride starts at midnight ET." :
+    data.phase === "locked" ? "Live — riding to the 4pm mark." :
+    data.phase === "adjudicating" ? "4pm mark — settling the board…" :
     "Final board.";
 
   return (
@@ -136,7 +137,7 @@ export default function EventRoom({
                 <div key={a.symbol} className="row">
                   <span className="who">{a.symbol}</span>
                   <span className="tiny">${a.units * 100}</span>
-                  <span className="val">{q ? `$${q.price.toFixed(2)}` : "—"}</span>
+                  <span className="val">{q ? priceLabel(q.price) : "—"}</span>
                   <span className={`pct ${q && q.pct >= 0 ? "pos" : "neg"}`}>
                     {q ? `${q.pct >= 0 ? "+" : ""}${q.pct.toFixed(2)}%` : ""}
                   </span>

@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { priceLabel } from "@/lib/format";
 
 type Quote = { symbol: string; price: number; pct: number };
 type Alloc = { symbol: string; units: number };
@@ -112,7 +113,7 @@ export default function PickScreen({
       const totalOthers = [...prev.entries()].filter(([s]) => s !== symbol).reduce((a, [, u]) => a + u, 0);
       const next = new Map(prev);
       const target = cur + delta;
-      if (target < 1) return prev;                       // min 1 unit per selected stock
+      if (target < 1) return prev;                       // min 1 unit per selected coin
       if (totalOthers + target > TOTAL_UNITS) return prev; // never exceed $1,000
       next.set(symbol, target);
       scheduleSave(next);
@@ -163,7 +164,7 @@ export default function PickScreen({
             <button key={q.symbol} className={`tile${sel ? " sel" : ""}`} onClick={() => toggle(q.symbol)}>
               <div className="t">{q.symbol}</div>
               <div className="px">
-                ${q.price.toFixed(2)}{" "}
+                {priceLabel(q.price)}{" "}
                 <span className={q.pct >= 0 ? "pos" : "neg"}>
                   {q.pct >= 0 ? "+" : ""}{q.pct.toFixed(2)}%
                 </span>
@@ -176,7 +177,7 @@ export default function PickScreen({
       <div className="card">
         <h2>Your $1,000</h2>
         {selected.length < 3 ? (
-          <p className="muted">Select {3 - selected.length} more stock{selected.length === 2 ? "" : "s"} above to start allocating.</p>
+          <p className="muted">Select {3 - selected.length} more coin{selected.length === 2 ? "" : "s"} above to start allocating.</p>
         ) : (
           <>
             <div className="splitbar" aria-hidden>

@@ -5,12 +5,11 @@
 import { sql } from "@/lib/db";
 import { dateET, minuteOfDayET } from "@/lib/calendar";
 import type { EventRow } from "@/lib/events";
-import { openPrice, pctChange, quoteAt } from "@/lib/prices";
+import { pctChange, quoteAt, startPrice } from "@/lib/prices";
 import { lockedRoster, type Allocation } from "@/lib/picks";
 import { enqueueSpine, flushOutbox } from "@/lib/outbox";
 
 const START_CENTS = 100000; // $1,000.00
-const OPEN_MIN = 570;
 
 export type StandingRow = {
   playerId: string;
@@ -22,22 +21,23 @@ export type StandingRow = {
   allocations: Allocation[];
 };
 
-/** Live portfolio value in cents. Flat $1,000 before the open on trading day. */
+/**
+ * Live portfolio value in cents. The ride is live from minute 0 of event_date
+ * (lock = start gun); flat $1,000 only in the pre-game room before midnight.
+ */
 export function liveValueCents(
-  allocations: Allocation[], tradingDate: string, now = new Date(),
+  allocations: Allocation[], eventDate: string, now = new Date(),
 ): number {
   const nowDate = dateET(now);
+  if (nowDate < eventDate) return START_CENTS; // pre-game: hasn't started yet
   const minute = minuteOfDayET(now);
-  const started = nowDate > tradingDate || (nowDate === tradingDate && minute >= OPEN_MIN);
-  if (!started) return START_CENTS;
-  // After the trading day ends we still price via quoteAt at close minute.
-  const priceDate = tradingDate;
-  const priceMinute = nowDate === tradingDate ? minute : 960;
+  // After 16:00 (or on a later day) the tape is pinned to the settled end price.
+  const priceMinute = nowDate === eventDate ? Math.min(minute, 960) : 960;
   let cents = 0;
   for (const a of allocations) {
-    const open = openPrice(a.symbol, tradingDate);
-    const q = quoteAt(a.symbol, priceDate, priceMinute);
-    cents += Math.round(a.units * 10000 * (q / open));
+    const start = startPrice(a.symbol, eventDate);
+    const q = quoteAt(a.symbol, eventDate, priceMinute);
+    cents += Math.round(a.units * 10000 * (q / start));
   }
   return cents;
 }
@@ -50,7 +50,7 @@ export async function liveStandings(roomId: string, event: EventRow, now = new D
     avatarUrl: m.avatarUrl,
     lockedAt: m.lockedAt,
     allocations: m.allocations,
-    valueCents: liveValueCents(m.allocations, event.trading_date, now),
+    valueCents: liveValueCents(m.allocations, event.event_date, now),
   }));
   rows.sort((a, b) => b.valueCents - a.valueCents || a.lockedAt.localeCompare(b.lockedAt));
   return rows.map((r, i) => ({
@@ -64,13 +64,13 @@ export async function liveStandings(roomId: string, event: EventRow, now = new D
   }));
 }
 
-export function quotesForPool(symbols: string[], tradingDate: string, now = new Date()) {
+export function quotesForPool(symbols: string[], eventDate: string, now = new Date()) {
   const nowDate = dateET(now);
   const minute = minuteOfDayET(now);
-  // Quote "today's tape" if we're on/after the trading date; otherwise the
-  // pre-event drift of the current civil date.
-  const qDate = nowDate >= tradingDate ? tradingDate : nowDate;
-  const qMinute = nowDate > tradingDate ? 960 : minute;
+  // Quote the event day's tape once it arrives (pinned to the 16:00 settle
+  // after the ride); before the event day, the live 24/7 tape of today.
+  const qDate = nowDate >= eventDate ? eventDate : nowDate;
+  const qMinute = nowDate > eventDate ? 960 : nowDate === eventDate ? Math.min(minute, 960) : minute;
   return symbols.map((s) => ({
     symbol: s,
     price: quoteAt(s, qDate, qMinute),

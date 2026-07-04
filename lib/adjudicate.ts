@@ -9,7 +9,7 @@
 
 import { sql } from "@/lib/db";
 import { ensureEvents, type EventRow } from "@/lib/events";
-import { closePrice, openPrice } from "@/lib/prices";
+import { endPrice, startPrice } from "@/lib/prices";
 import { enqueueClose, flushOutbox } from "@/lib/outbox";
 import type { Allocation } from "@/lib/picks";
 
@@ -23,22 +23,22 @@ export async function settleAndClose(ref: string): Promise<{ ran: boolean }> {
     set claim_at = now()
     where ref = ${ref} and closed_at is null and settles_at <= now()
       and (claim_at is null or claim_at < now() - make_interval(mins => ${CLAIM_STALE_MIN}))
-    returning ref, trading_date, locks_at, settles_at, trophy_label, closed_at`;
+    returning ref, event_date, locks_at, settles_at, trophy_label, closed_at`;
   if (!claimed.length) return { ran: false };
   const e = claimed[0];
-  const tradingDate = e.trading_date instanceof Date
-    ? e.trading_date.toISOString().slice(0, 10)
-    : String(e.trading_date).slice(0, 10);
+  const eventDate = e.event_date instanceof Date
+    ? e.event_date.toISOString().slice(0, 10)
+    : String(e.event_date).slice(0, 10);
   const trophyLabel = String(e.trophy_label);
 
-  // 2) Settle open/close prices into the pool snapshot (idempotent overwrite —
-  //    the deterministic feed always returns the same numbers).
+  // 2) Settle start/end prices into the pool snapshot (idempotent overwrite —
+  //    the deterministic tape always returns the same numbers).
   const pool = await sql`select symbol from coingame_event_pool where event_ref = ${ref}`;
   for (const row of pool) {
     const symbol = String(row.symbol);
     await sql`
       update coingame_event_pool
-      set open_price = ${openPrice(symbol, tradingDate)}, close_price = ${closePrice(symbol, tradingDate)}
+      set start_price = ${startPrice(symbol, eventDate)}, end_price = ${endPrice(symbol, eventDate)}
       where event_ref = ${ref} and symbol = ${symbol}`;
   }
 
@@ -63,9 +63,9 @@ export async function settleAndClose(ref: string): Promise<{ ran: boolean }> {
       const allocations = p.allocations as Allocation[];
       let cents = 0;
       for (const a of allocations) {
-        const open = openPrice(a.symbol, tradingDate);
-        const close = closePrice(a.symbol, tradingDate);
-        cents += Math.round(a.units * 10000 * (close / open));
+        const start = startPrice(a.symbol, eventDate);
+        const end = endPrice(a.symbol, eventDate);
+        cents += Math.round(a.units * 10000 * (end / start));
       }
       return {
         playerId: String(p.player_id),
@@ -107,7 +107,7 @@ export async function settleDueEvents(): Promise<number> {
   const due = await sql`
     select ref from coingame_event
     where closed_at is null and settles_at <= now()
-    order by trading_date asc`;
+    order by event_date asc`;
   let ran = 0;
   for (const r of due) {
     const res = await settleAndClose(String(r.ref));

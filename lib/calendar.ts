@@ -1,13 +1,8 @@
-// America/New_York trading calendar. All game time is ET; DST is handled via
-// Intl (never hand-rolled UTC offsets).
+// America/New_York time helpers. All game time is ET; DST is handled via
+// Intl (never hand-rolled UTC offsets). NO market calendar — coins trade 24/7,
+// so every calendar day is an event day.
 
 const ET = "America/New_York";
-
-// 2026 US market holidays (NYSE). Good Friday Apr 3; Juneteenth observed Jun 19.
-const HOLIDAYS_2026 = new Set([
-  "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03", "2026-05-25",
-  "2026-06-19", "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25",
-]);
 
 const dateFmt = new Intl.DateTimeFormat("en-CA", {
   timeZone: ET, year: "numeric", month: "2-digit", day: "2-digit",
@@ -26,46 +21,28 @@ export function todayET(): string {
   return dateET(new Date());
 }
 
-/** Minute-of-day in ET for an instant (9:30 AM = 570, 4:00 PM = 960). */
+/** Minute-of-day in ET for an instant (00:00 = 0, 4:00 PM = 960). */
 export function minuteOfDayET(d: Date = new Date()): number {
   const parts = Object.fromEntries(partsFmt.formatToParts(d).map((p) => [p.type, p.value]));
   return Number(parts.hour) * 60 + Number(parts.minute);
 }
 
-function dayOfWeek(dateStr: string): number {
+export function addDays(dateStr: string, n: number): string {
   // Noon UTC avoids date rollover for any timezone question about the civil date.
-  return new Date(`${dateStr}T12:00:00Z`).getUTCDay();
-}
-
-export function isTradingDay(dateStr: string): boolean {
-  const dow = dayOfWeek(dateStr);
-  if (dow === 0 || dow === 6) return false;
-  return !HOLIDAYS_2026.has(dateStr);
-}
-
-function addDays(dateStr: string, n: number): string {
   const d = new Date(`${dateStr}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
 
-/** Next n trading days STRICTLY AFTER `fromDateStr` (ET civil date). */
-export function nextTradingDays(fromDateStr: string, n: number): string[] {
+/** Next n calendar days STRICTLY AFTER `fromDateStr` (ET civil date). */
+export function nextDays(fromDateStr: string, n: number): string[] {
   const out: string[] = [];
-  let d = fromDateStr;
-  while (out.length < n) {
-    d = addDays(d, 1);
-    if (isTradingDay(d)) out.push(d);
-  }
+  for (let i = 1; i <= n; i++) out.push(addDays(fromDateStr, i));
   return out;
 }
 
-export function prevTradingDay(dateStr: string): string {
-  let d = dateStr;
-  for (;;) {
-    d = addDays(d, -1);
-    if (isTradingDay(d)) return d;
-  }
+export function prevDay(dateStr: string): string {
+  return addDays(dateStr, -1);
 }
 
 /**
@@ -89,14 +66,14 @@ export function etInstant(dateStr: string, hour: number, minute: number): Date {
   return guess;
 }
 
-/** Midnight ET at the start of `tradingDate` — the pick deadline. */
-export function locksAt(tradingDate: string): Date {
-  return etInstant(tradingDate, 0, 0);
+/** Midnight ET at the start of `eventDate` — the pick deadline AND the start gun. */
+export function locksAt(eventDate: string): Date {
+  return etInstant(eventDate, 0, 0);
 }
 
-/** 16:10 ET on `tradingDate` — settle/adjudication time. */
-export function settlesAt(tradingDate: string): Date {
-  return etInstant(tradingDate, 16, 10);
+/** 16:10 ET on `eventDate` — settle/adjudication time. */
+export function settlesAt(eventDate: string): Date {
+  return etInstant(eventDate, 16, 10);
 }
 
 const labelFmt = new Intl.DateTimeFormat("en-US", {

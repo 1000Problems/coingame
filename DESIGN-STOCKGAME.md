@@ -1,3 +1,5 @@
+> **SUPERSEDED (2026-07-04)** by the coin pivot — see `DESIGN-COINGAME.md` and `TASK-coingame-06-coin-pivot.md`. Kept as the historical record of the stock build. Do not build from this doc.
+
 # DESIGN — 1K Daily Stock Pick 'Em
 
 **Status: design of record (2026-07-03).** A third-party game for the botcity/PickCity

@@ -1,3 +1,5 @@
+> **SUPERSEDED (2026-07-04)** by the coin pivot — see `DESIGN-COINGAME.md` and `TASK-coingame-06-coin-pivot.md`. Kept as the historical record of the stock build. Do not build from this doc.
+
 # TASK: Adjudication + close wire — settle, boards, event-close fan-out, sweeper
 
 > Turn 4:00 PM ET into results: settle prices, compute per-instance boards, push

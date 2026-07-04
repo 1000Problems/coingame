@@ -1,5 +1,5 @@
 // One route per event; phase + the caller's lock status decide the screen
-// (DESIGN-STOCKGAME.md "Routes"):
+// (DESIGN-COINGAME.md "Routes"):
 //   open + no locked pick  → pick screen (draft editing)
 //   open + locked          → event room (pre-game chat/roster/others' picks)
 //   locked/adjudicating    → event room, live re-ranking (locked players)
@@ -34,7 +34,7 @@ export default async function EventPage({
   const now = new Date();
   const phase = phaseOf(event, now);
   const locked = await hasLockedPick(session.roomId, event.ref, session.playerId);
-  const dateLabel = labelFor(event.trading_date);
+  const dateLabel = labelFor(event.event_date);
 
   const header = (
     <div className="topbar">
@@ -48,7 +48,7 @@ export default async function EventPage({
       poolFor(event.ref),
       getPick(session.roomId, event.ref, session.playerId),
     ]);
-    const quotes = quotesForPool(pool.map((p) => p.symbol), event.trading_date, now);
+    const quotes = quotesForPool(pool.map((p) => p.symbol), event.event_date, now);
     return (
       <main className="wrap">
         {header}
@@ -71,7 +71,7 @@ export default async function EventPage({
           <h2>Picks are locked for {dateLabel}</h2>
           <p className="muted">
             You didn&apos;t lock in for this one — the room is for players who did.
-            The board goes public when the day closes.
+            The board goes public after the 4pm mark settles.
           </p>
         </div>
       </main>

@@ -1,5 +1,5 @@
 // Pick domain: draft save (private, editable) and the irreversible lock.
-// Rules decided in DESIGN-STOCKGAME.md:
+// Rules decided in DESIGN-COINGAME.md:
 //   - exactly 3 distinct pool symbols, integer units >= 1, sum = 10 ($1,000 in $100s)
 //   - drafts are private; NO code path reveals them to other players
 //   - lock is final: no edit, no unlock, ever
@@ -20,7 +20,7 @@ export type PickRow = {
 
 export function validateAllocations(raw: unknown, poolSymbols: Set<string>): { ok: true; allocations: Allocation[] } | { ok: false; error: string } {
   if (!Array.isArray(raw)) return { ok: false, error: "allocations must be an array" };
-  if (raw.length !== 3) return { ok: false, error: "pick exactly 3 stocks" };
+  if (raw.length !== 3) return { ok: false, error: "pick exactly 3 coins" };
   const seen = new Set<string>();
   const out: Allocation[] = [];
   let total = 0;

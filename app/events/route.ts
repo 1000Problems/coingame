@@ -1,6 +1,6 @@
 // GET /events — the schedule (GAME-INTEGRATION-V2 §3). Instance-agnostic,
 // unsigned, JSON. Runs ensureEvents(2) first so the host ALWAYS sees the next
-// two trading days open (including on the very first read after Connect), and
+// two calendar days open (including on the very first read after Connect), and
 // opportunistically settles anything past its settle time.
 import { NextResponse } from "next/server";
 import { ensureEvents, eventsWindow, toWireEvent } from "@/lib/events";

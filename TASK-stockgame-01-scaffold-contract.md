@@ -1,3 +1,5 @@
+> **SUPERSEDED (2026-07-04)** by the coin pivot — see `DESIGN-COINGAME.md` and `TASK-coingame-06-coin-pivot.md`. Kept as the historical record of the stock build. Do not build from this doc.
+
 # TASK: Scaffold stockgame host + contract surface
 
 > Stand up the 1K Daily Stock Pick 'Em repo: DB bootstrap, core libs, and the three

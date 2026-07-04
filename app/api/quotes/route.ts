@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   if (!event) return NextResponse.json({ error: "unknown event" }, { status: 404 });
   const pool = await poolFor(eventRef);
   return NextResponse.json({
-    quotes: quotesForPool(pool.map((p) => p.symbol), event.trading_date),
+    quotes: quotesForPool(pool.map((p) => p.symbol), event.event_date),
     locksAt: event.locks_at,
   });
 }

@@ -1,3 +1,5 @@
+> **SUPERSEDED (2026-07-04)** by the coin pivot — see `DESIGN-COINGAME.md` and `TASK-coingame-06-coin-pivot.md`. Kept as the historical record of the stock build. Do not build from this doc.
+
 # TASK: Event room — per-event chat, roster, live standings
 
 > The social payoff for locking: each event's own room with chat, the roster of locked

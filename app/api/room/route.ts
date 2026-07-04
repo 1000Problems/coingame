@@ -54,9 +54,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     phase,
     closed: false,
-    tradingDate: event.trading_date,
+    eventDate: event.event_date,
     locksAt: event.locks_at,
-    quotes: quotesForPool(symbols, event.trading_date, now),
+    quotes: quotesForPool(symbols, event.event_date, now),
     standings,
     roster: roster.map((m) => ({ playerId: m.playerId, displayName: m.displayName, allocations: m.allocations })),
     chat,

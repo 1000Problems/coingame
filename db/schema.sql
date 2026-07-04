@@ -1,4 +1,4 @@
--- stockgame schema — 1K Daily Stock Pick 'Em (DESIGN-STOCKGAME.md).
+-- coingame schema — 1K Daily Coin Pick 'Em (DESIGN-COINGAME.md).
 -- SHARED NEON DB (~90 projects). Every object is prefixed coingame_.
 -- This file is the DESTRUCTIVE full-rebuild path: it drops ONLY coingame_* tables.
 -- Two-places rule: every change here also lands as an idempotent statement in
@@ -12,25 +12,28 @@ drop table if exists coingame_player cascade;
 drop table if exists coingame_instance cascade;
 drop table if exists coingame_event_pool cascade;
 drop table if exists coingame_event cascade;
-drop table if exists coingame_ticker cascade;
+drop table if exists coingame_coin cascade;
+drop table if exists coingame_ticker cascade; -- legacy stock-era name
 
--- Curated master pool. Rotation = flipping active flags.
-create table coingame_ticker (
-  symbol text primary key,
-  name   text not null,
-  sector text,
-  active boolean not null default true
+-- Curated master pool: top 20 by market cap, stablecoins/pegged excluded.
+-- Rotation = flipping active flags.
+create table coingame_coin (
+  symbol   text primary key,
+  name     text not null,
+  category text,
+  active   boolean not null default true
 );
 
--- One row per trading day. ref is the contract eventRef, permanent once published.
+-- One row per CALENDAR day (coins trade 24/7 — no market calendar). ref is
+-- the contract eventRef, permanent once published.
 -- Phase is COMPUTED from the clock (lib/events.ts phaseOf); only closed is stored.
 -- claim_at is the adjudication mutex (atomic UPDATE claim; advisory locks don't
 -- survive Neon's per-query http sessions).
 create table coingame_event (
   ref          text primary key,               -- 'd-2026-07-06'
-  trading_date date not null unique,
-  locks_at     timestamptz not null,           -- midnight ET before trading_date
-  settles_at   timestamptz not null,           -- 16:10 ET on trading_date
+  event_date   date not null unique,
+  locks_at     timestamptz not null,           -- 00:00 ET on event_date — deadline AND start gun
+  settles_at   timestamptz not null,           -- 16:10 ET on event_date
   trophy_label text not null,
   closed_at    timestamptz,
   claim_at     timestamptz,
@@ -38,13 +41,14 @@ create table coingame_event (
 );
 
 -- Pool snapshot per event, with settled prices. Adjudication source of truth —
--- a real price feed later only changes who writes open/close.
+-- a real price feed later only changes who writes start/end.
+-- numeric(20,8): BTC at $61,800 and sub-cent coins both fit.
 create table coingame_event_pool (
   event_ref   text not null references coingame_event(ref) on delete cascade,
   symbol      text not null,
-  prev_close  numeric(12,4),
-  open_price  numeric(12,4),
-  close_price numeric(12,4),
+  ref_price   numeric(20,8),                   -- 24h-ago display reference
+  start_price numeric(20,8),                   -- settled at 00:00 ET (lock)
+  end_price   numeric(20,8),                   -- settled at 16:00 ET
   primary key (event_ref, symbol)
 );
 
