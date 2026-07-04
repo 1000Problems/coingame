@@ -9,6 +9,7 @@ import { priceLabel, sortAllocations } from "@/lib/format";
 import { chipTextColor, FALLBACK_COIN_COLOR } from "@/lib/colors";
 import { COIN_INFO } from "@/lib/coininfo";
 import CoinCard from "@/components/CoinCard";
+import Avatar from "@/components/Avatar";
 
 type Alloc = { symbol: string; units: number };
 type Standing = {
@@ -116,6 +117,14 @@ export default function EventRoom({
 
   const mine = data.standings.find((s) => s.playerId === me);
   const colorOf = (s: string) => data.colors?.[s] ?? FALLBACK_COIN_COLOR;
+  // Identity ring: the brand color of the biggest holding (canonical order
+  // from sortAllocations breaks ties). No bag data → neutral ring.
+  const ringOf = (allocs: Alloc[]) =>
+    allocs.length ? colorOf(sortAllocations(allocs)[0].symbol) : "var(--line)";
+  // Chat wears the same identity: avatar/ring/rank come from standings —
+  // chat is lock-gated, so every chatter is on the board (no API change).
+  const byId = new Map(data.standings.map((s) => [s.playerId, s]));
+  const podium = data.closed ? data.standings.slice(0, 3) : [];
   const statusLine =
     data.phase === "open" ? "Picks are in — the ride starts at midnight ET." :
     data.phase === "locked" ? "Live — riding to the 4pm mark." :
@@ -140,16 +149,19 @@ export default function EventRoom({
                 </div>
               ))}
             </div>
-            <p style={{ margin: "8px 0 0", fontWeight: 800, fontSize: 18 }}>
-              {dollars(mine.valueCents)}{" "}
-              <span className={mine.pct >= 0 ? "pos" : "neg"} style={{ fontSize: 14 }}>
-                {mine.pct >= 0 ? "+" : ""}{mine.pct.toFixed(2)}%
-              </span>{" "}
-              <span className="tiny">
-                · you&apos;re #{mine.placement}
-                {lockTimeET(mine.lockedAt) ? ` · 🔒 ${lockTimeET(mine.lockedAt)}` : ""}
-              </span>
-            </p>
+            <div className="heroline">
+              <Avatar url={mine.avatarUrl} name={mine.displayName} size={52} ring={ringOf(mine.allocations)} />
+              <p style={{ margin: 0, fontWeight: 800, fontSize: 18 }}>
+                {dollars(mine.valueCents)}{" "}
+                <span className={mine.pct >= 0 ? "pos" : "neg"} style={{ fontSize: 14 }}>
+                  {mine.pct >= 0 ? "+" : ""}{mine.pct.toFixed(2)}%
+                </span>{" "}
+                <span className="tiny">
+                  · you&apos;re #{mine.placement}
+                  {lockTimeET(mine.lockedAt) ? ` · 🔒 ${lockTimeET(mine.lockedAt)}` : ""}
+                </span>
+              </p>
+            </div>
           </>
         ) : null}
       </div>
@@ -196,16 +208,33 @@ export default function EventRoom({
           {data.standings.length} player{data.standings.length === 1 ? "" : "s"}
           {data.closed ? "" : " · re-ranks live"} · equal bags? the earlier 🔒 wins
         </p>
+        {podium.length ? (
+          <div className="podium">
+            {/* #1 center at 64px w/ gold ring; #2/#3 flank at 52px. <3 players: rank order. */}
+            {(podium.length === 3 ? [podium[1], podium[0], podium[2]] : podium).map((s) => (
+              <div key={s.playerId} className={`p${s.placement === 1 ? " first" : ""}`}>
+                <Avatar
+                  url={s.avatarUrl}
+                  name={s.displayName}
+                  size={s.placement === 1 ? 64 : 52}
+                  ring={s.placement === 1 ? "var(--gold)" : ringOf(s.allocations)}
+                />
+                <span className="pname">{s.placement === 1 ? "🏆 " : ""}{s.displayName}</span>
+                <span className="pval">{dollars(s.valueCents)}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div className="rows">
           {data.standings.map((s) => (
             <div key={s.playerId} className={`row${s.playerId === me ? " me" : ""}${data.closed && s.placement === 1 ? " winner" : ""}`}>
               <span className="rank">{s.placement}</span>
-              {s.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- host-rendered SVG avatar (contract §2)
-                <img className="avatar" src={s.avatarUrl} alt="" width={28} height={28} />
-              ) : (
-                <span className="avatar" />
-              )}
+              <Avatar
+                url={s.avatarUrl}
+                name={s.displayName}
+                size={data.closed && s.placement === 1 ? 48 : 40}
+                ring={data.closed && s.placement === 1 ? "var(--gold)" : ringOf(s.allocations)}
+              />
               <span className="who">
                 {data.closed && s.placement === 1 ? "🏆 " : ""}{s.displayName}{s.playerId === me ? " (you)" : ""}
                 {lockTimeET(s.lockedAt) ? (
@@ -235,14 +264,35 @@ export default function EventRoom({
         <div className="card">
           <h2>Room chat</h2>
           <div className="chatbox">
-            {msgs.map((m) => (
-              <div key={m.id} className="msg">
-                <div>
-                  <div className="name">{m.displayName}</div>
-                  <div className="body">{m.body}</div>
+            {msgs.map((m, i) => {
+              const prev = i > 0 ? msgs[i - 1] : null;
+              const grouped = prev != null && prev.playerId === m.playerId &&
+                new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() < 180000;
+              const p = byId.get(m.playerId);
+              return (
+                <div key={m.id} className={`msg${grouped ? " grouped" : ""}`}>
+                  {grouped ? (
+                    <span className="msg-spacer" />
+                  ) : (
+                    <Avatar
+                      url={p?.avatarUrl ?? null}
+                      name={m.displayName}
+                      size={30}
+                      ring={p ? ringOf(p.allocations) : "var(--line)"}
+                    />
+                  )}
+                  <div style={{ minWidth: 0 }}>
+                    {grouped ? null : (
+                      <div className="name">
+                        {m.displayName}
+                        {p ? <span className="tiny"> · #{p.placement}</span> : null}
+                      </div>
+                    )}
+                    <div className="body">{m.body}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             <div ref={chatEnd} />
           </div>
           <form className="chatform" onSubmit={send}>
