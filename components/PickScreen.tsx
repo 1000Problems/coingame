@@ -197,6 +197,33 @@ export default function PickScreen({
         <div className="pickclock">Locks 12:00 AM ET · {countdown}</div>
       </div>
 
+      <div className="howto">
+        <p className="howto-hook">Split $1,000 across your coins. The biggest bag at 4PM takes the daily trophy.</p>
+        <div className="howto-steps">
+          <div className="howto-step">
+            <span className="howto-n">1</span>
+            <div>
+              <b>Split it</b>
+              <span>$1,000 across 3–10 coins</span>
+            </div>
+          </div>
+          <div className="howto-step">
+            <span className="howto-n">2</span>
+            <div>
+              <b>Locks 12:00 AM ET</b>
+              <span>picks freeze — no changes</span>
+            </div>
+          </div>
+          <div className="howto-step">
+            <span className="howto-n">3</span>
+            <div>
+              <b>Cash out 4:00 PM ET</b>
+              <span>top bag wins the trophy</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="barwrap">
         <div className="barhead">
           <span className="barlabel">Your $1,000</span>
@@ -265,10 +292,9 @@ export default function PickScreen({
         </button>
       </div>
       <p className="tiny" style={{ padding: "0 26px 18px", margin: 0 }}>
-        Pick 3–10 coins; a new pick takes a $100 chip, − to $0 removes one.
-        Locking is final — it opens the room, where you&apos;ll see everyone
-        else&apos;s picks. The ride starts at midnight ET, and if bags tie,
-        the earlier lock wins.
+        A new pick takes a $100 chip; − to $0 removes it. Locking is final and
+        opens the room, where you&apos;ll see everyone else&apos;s picks. If two
+        bags tie, the earlier lock wins.
       </p>
       {infoFor ? (
         <CoinCard

@@ -162,6 +162,27 @@ body {
 .pickmeta { font-size: 11.5px; color: #8b909c; }
 .pickclock { font-size: 12px; font-weight: 600; color: #16181d; font-variant-numeric: tabular-nums; }
 
+/* ---- "how it works" explainer strip (top of the pick screen) ------------- */
+.howto { padding: 16px 26px 2px; }
+.howto-hook {
+  margin: 0 0 12px; font-size: 14.5px; font-weight: 700;
+  letter-spacing: -0.01em; color: #16181d; line-height: 1.35;
+}
+.howto-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+@media (max-width: 480px) { .howto-steps { grid-template-columns: 1fr; } }
+.howto-step {
+  display: flex; align-items: flex-start; gap: 9px; background: #fff;
+  border: 1px solid #e7e9ee; border-radius: 10px; padding: 10px 11px;
+}
+.howto-n {
+  flex: none; width: 18px; height: 18px; border-radius: 50%;
+  background: #16181d; color: #fff; font-size: 10.5px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; margin-top: 1px;
+}
+.howto-step:last-child .howto-n { background: #12855f; }
+.howto-step b { display: block; font-size: 12px; font-weight: 700; color: #16181d; line-height: 1.25; }
+.howto-step span { display: block; font-size: 11px; color: #8b909c; margin-top: 2px; line-height: 1.3; }
+
 .barwrap { padding: 22px 26px 0; }
 .barhead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
 .barlabel { font-size: 13px; font-weight: 600; color: #16181d; }
