@@ -4,9 +4,10 @@
 // $1,000 chip bar in per-coin brand colors, 2-col tile grid with steppers, and
 // a footer status line + irreversible lock (with confirm).
 //
-// Deliberate deltas from the mockup (TASK-coingame-07):
+// Deliberate deltas from the mockup (TASK-coingame-07, -08):
 //   - per-coin fixed colors everywhere, NOT slot colors
-//   - min 1 unit per selected coin (matches server validation; mockup allowed 0)
+//   - the − stepper is the ONLY deselect: stepping to $0 removes the pick
+//     (tile tap is select-only — no accidental unit-nuking taps)
 //   - drafts autosave (product behavior the mockup didn't model)
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -109,16 +110,19 @@ export default function PickScreen({
   function toggle(symbol: string) {
     setErr("");
     setAlloc((prev) => {
+      if (prev.has(symbol)) return prev; // select-only; − to $0 is the deselect
+      if (prev.size >= 3) return prev;   // pick exactly 3
       const next = new Map(prev);
-      if (next.has(symbol)) {
-        next.delete(symbol);
-      } else {
-        if (next.size >= 3) return prev; // pick exactly 3
-        next.set(symbol, 0);
-        // Seed sensible defaults when the third pick lands: 4/3/3.
-        if (next.size === 3) {
+      const others = [...next.values()].reduce((a, b) => a + b, 0);
+      next.set(symbol, 0);
+      if (next.size === 3) {
+        if (others === 0) {
+          // Fresh flow: seed sensible defaults 4/3/3.
           const syms = [...next.keys()];
           next.set(syms[0], 4); next.set(syms[1], 3); next.set(syms[2], 3);
+        } else {
+          // Re-pick after a − unselect: the newcomer inherits the freed budget.
+          next.set(symbol, TOTAL_UNITS - others);
         }
       }
       scheduleSave(next);
@@ -133,9 +137,12 @@ export default function PickScreen({
       const totalOthers = [...prev.entries()].filter(([s]) => s !== symbol).reduce((a, [, u]) => a + u, 0);
       const next = new Map(prev);
       const target = cur + delta;
-      if (target < 1) return prev;                         // min 1 unit per selected coin
-      if (totalOthers + target > TOTAL_UNITS) return prev; // never exceed $1,000
-      next.set(symbol, target);
+      if (target < 1) {
+        next.delete(symbol);                 // − to $0 unselects, freeing the slot
+      } else {
+        if (totalOthers + target > TOTAL_UNITS) return prev; // never exceed $1,000
+        next.set(symbol, target);
+      }
       scheduleSave(next);
       return next;
     });
@@ -234,7 +241,7 @@ export default function PickScreen({
               </button>
               {sel ? (
                 <span className="tilestep">
-                  <button className="stepbtn minus" onClick={() => step(q.symbol, -1)} disabled={(alloc.get(q.symbol) ?? 0) <= 1}>−</button>
+                  <button className="stepbtn minus" onClick={() => step(q.symbol, -1)}>−</button>
                   <span className="stepamt">${(alloc.get(q.symbol) ?? 0) * 100}</span>
                   <button className="stepbtn plus" onClick={() => step(q.symbol, 1)} disabled={remaining <= 0}>+</button>
                 </span>
@@ -251,8 +258,8 @@ export default function PickScreen({
         </button>
       </div>
       <p className="tiny" style={{ padding: "0 26px 18px", margin: 0 }}>
-        Locking is final — it opens the room, where you&apos;ll see everyone else&apos;s picks.
-        The ride starts at midnight ET.
+        − to $0 removes a pick. Locking is final — it opens the room, where
+        you&apos;ll see everyone else&apos;s picks. The ride starts at midnight ET.
       </p>
     </div>
   );
