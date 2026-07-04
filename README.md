@@ -19,7 +19,7 @@ superseded and kept as history.
 npm install
 cp .env.local.example .env.local   # fill in DATABASE_URL (+ a dev ROOMS_SIGNING_KEY)
 node db/migrate-additive.mjs       # SAFE: idempotent, coingame_* only, self-guarding
-node db/seed.mjs                   # ~30-coin pool
+node db/seed.mjs                   # 10-coin pool with brand colors
 npm run dev
 node scripts/mint-test-token.mjs   # prints a launch URL to paste in the browser
 ```

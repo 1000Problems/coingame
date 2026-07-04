@@ -15,12 +15,15 @@ drop table if exists coingame_event cascade;
 drop table if exists coingame_coin cascade;
 drop table if exists coingame_ticker cascade; -- legacy stock-era name
 
--- Curated master pool: top 20 by market cap, stablecoins/pegged excluded.
--- Rotation = flipping active flags.
+-- Curated master pool: top 10 by market cap, stablecoins/pegged excluded
+-- (LEO and ZEC swapped for LINK and HBAR — see TASK-coingame-07).
+-- Rotation = flipping active flags. color = the coin's fixed brand color,
+-- used identically on every screen (chips, bars, tiles, legends).
 create table coingame_coin (
   symbol   text primary key,
   name     text not null,
   category text,
+  color    text,                        -- '#F7931A'
   active   boolean not null default true
 );
 

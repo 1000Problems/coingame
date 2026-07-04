@@ -65,9 +65,8 @@ body {
   display: flex; height: 34px; border-radius: 10px; overflow: hidden;
   border: 1px solid var(--line); background: #efede8;
 }
-.seg { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700; min-width: 0; overflow: hidden; white-space: nowrap; transition: width .25s ease; }
-.seg.s0 { background: #0f6f5c; } .seg.s1 { background: #23856d; } .seg.s2 { background: #3f9f85; }
-.seg.rest { background: transparent; color: var(--ink-3); font-weight: 600; }
+.seg { display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; min-width: 0; overflow: hidden; white-space: nowrap; transition: width .25s ease; }
+/* Segment colors are per-coin, inline from coingame_coin.color (TASK-coingame-07). */
 
 .alloc-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .alloc-row:last-child { border-bottom: 0; }
@@ -131,3 +130,65 @@ body {
 }
 .err { color: var(--down); font-size: 13px; min-height: 18px; }
 .ok-lock { text-align: center; padding: 20px 0 8px; font-weight: 800; font-size: 17px; }
+
+/* ---- 1c "Split Bar" pick screen (design_handoff_pick_screen_1c) ---------- */
+
+.pickcard {
+  max-width: 640px; margin: 0 auto; background: #f5f6f8;
+  border: 1px solid rgba(0, 0, 0, .08); border-radius: 16px; overflow: hidden;
+}
+.pickhead {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 15px 26px; background: #fff; border-bottom: 1px solid #e7e9ee;
+}
+.pickhead-l { display: flex; align-items: baseline; gap: 8px; }
+.pickbrand { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; color: #16181d; }
+.pickmeta { font-size: 11.5px; color: #8b909c; }
+.pickclock { font-size: 12px; font-weight: 600; color: #16181d; font-variant-numeric: tabular-nums; }
+
+.barwrap { padding: 22px 26px 0; }
+.barhead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.barlabel { font-size: 13px; font-weight: 600; color: #16181d; }
+.barfree { font-size: 12px; color: #8b909c; font-variant-numeric: tabular-nums; }
+.chipbar { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
+.chipseg {
+  height: 34px; border-radius: 6px; border: 1px solid transparent;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8.5px; font-weight: 700; transition: background .2s;
+}
+.chipseg.empty { background: #fff; border-color: #e0e3ea; color: #b6bac4; }
+.barlegend { display: flex; gap: 14px; margin-top: 8px; min-height: 16px; }
+.legenditem { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #4a4f5a; }
+.swatch { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+
+.pooltiles { padding: 16px 26px 6px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+@media (max-width: 480px) { .pooltiles { grid-template-columns: 1fr; } }
+.cointile {
+  display: flex; align-items: center; gap: 10px; background: #fff;
+  border: 1.5px solid #e7e9ee; border-radius: 12px; padding: 10px 12px;
+  transition: border-color .15s, opacity .15s;
+}
+.cointile-main { flex: 1; min-width: 0; cursor: pointer; background: none; border: 0; padding: 0; text-align: left; font: inherit; }
+.cointile-top { display: flex; align-items: center; gap: 6px; }
+.cointile .dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.cointile .tick { font-size: 13px; font-weight: 700; color: #16181d; }
+.cointile .d24 { font-size: 10.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cointile .d24.pos { color: #12855f; } .cointile .d24.neg { color: #e8483f; }
+.cointile .priceline { display: block; font-size: 10.5px; color: #8b909c; margin-top: 1px; font-variant-numeric: tabular-nums; }
+.tilestep { display: flex; align-items: center; gap: 6px; }
+.stepbtn {
+  width: 24px; height: 24px; border-radius: 7px; border: 0; cursor: pointer;
+  font-size: 14px; font-weight: 700; line-height: 1; display: flex; align-items: center; justify-content: center;
+}
+.stepbtn.minus { background: #eef0f4; color: #16181d; }
+.stepbtn.plus { background: #16181d; color: #fff; }
+.stepbtn:disabled { opacity: .35; cursor: default; }
+.stepamt { font-size: 13px; font-weight: 700; color: #16181d; min-width: 42px; text-align: center; font-variant-numeric: tabular-nums; }
+
+.pickfoot { padding: 12px 26px 10px; display: flex; align-items: center; justify-content: space-between; }
+.footstatus { font-size: 12px; color: #8b909c; }
+.lockbtn {
+  font-size: 13.5px; font-weight: 700; color: #fff; border: 0; border-radius: 10px;
+  padding: 11px 24px; background: #16181d; cursor: pointer;
+}
+.lockbtn:disabled { background: #c4c6cd; cursor: default; }

@@ -28,8 +28,10 @@ const statements = [
      symbol   text primary key,
      name     text not null,
      category text,
+     color    text,
      active   boolean not null default true
    )`,
+  `alter table coingame_coin add column if not exists color text`,
   `create table if not exists coingame_event (
      ref          text primary key,
      event_date   date not null unique,

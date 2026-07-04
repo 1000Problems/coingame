@@ -1,12 +1,18 @@
 "use client";
 
-// The allocation screen: 1a Gallery's calm tiles + 1c Split Bar's segmented
-// $1,000 bar with steppers. Drafts autosave (debounced); Lock it in is the
-// real, irreversible commitment and the door into the event room.
+// The 1c "Split Bar" pick screen (design_handoff_pick_screen_1c): a 10-segment
+// $1,000 chip bar in per-coin brand colors, 2-col tile grid with steppers, and
+// a footer status line + irreversible lock (with confirm).
+//
+// Deliberate deltas from the mockup (TASK-coingame-07):
+//   - per-coin fixed colors everywhere, NOT slot colors
+//   - min 1 unit per selected coin (matches server validation; mockup allowed 0)
+//   - drafts autosave (product behavior the mockup didn't model)
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { priceLabel } from "@/lib/format";
+import { chipTextColor, FALLBACK_COIN_COLOR } from "@/lib/colors";
 
 type Quote = { symbol: string; price: number; pct: number };
 type Alloc = { symbol: string; units: number };
@@ -14,13 +20,14 @@ type Alloc = { symbol: string; units: number };
 const TOTAL_UNITS = 10;
 
 export default function PickScreen({
-  eventRef, dateLabel, locksAt, quotes: initialQuotes, draft,
+  eventRef, dateLabel, locksAt, quotes: initialQuotes, draft, colors,
 }: {
   eventRef: string;
   dateLabel: string;
   locksAt: string;
   quotes: Quote[];
   draft: Alloc[];
+  colors: Record<string, string>;
 }) {
   const router = useRouter();
   const [quotes, setQuotes] = useState<Quote[]>(initialQuotes);
@@ -32,7 +39,12 @@ export default function PickScreen({
   const [countdown, setCountdown] = useState("");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Quote refresh (after-hours moves tick live).
+  const colorOf = useCallback(
+    (s: string) => colors[s] ?? FALLBACK_COIN_COLOR,
+    [colors],
+  );
+
+  // Quote refresh — the 24/7 tape ticks live.
   useEffect(() => {
     const id = setInterval(async () => {
       try {
@@ -65,6 +77,14 @@ export default function PickScreen({
   const used = useMemo(() => [...alloc.values()].reduce((a, b) => a + b, 0), [alloc]);
   const remaining = TOTAL_UNITS - used;
   const valid = selected.length === 3 && used === TOTAL_UNITS;
+
+  // The 10 segments, filled in selection order: [{symbol}...] then nulls.
+  const segments = useMemo(() => {
+    const out: (string | null)[] = [];
+    for (const [sym, units] of alloc) for (let i = 0; i < units; i++) out.push(sym);
+    while (out.length < TOTAL_UNITS) out.push(null);
+    return out;
+  }, [alloc]);
 
   const scheduleSave = useCallback((next: Map<string, number>) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -113,7 +133,7 @@ export default function PickScreen({
       const totalOthers = [...prev.entries()].filter(([s]) => s !== symbol).reduce((a, [, u]) => a + u, 0);
       const next = new Map(prev);
       const target = cur + delta;
-      if (target < 1) return prev;                       // min 1 unit per selected coin
+      if (target < 1) return prev;                         // min 1 unit per selected coin
       if (totalOthers + target > TOTAL_UNITS) return prev; // never exceed $1,000
       next.set(symbol, target);
       scheduleSave(next);
@@ -122,6 +142,7 @@ export default function PickScreen({
   }
 
   async function lockIn() {
+    if (!window.confirm("Locking is final — picks can't be changed after this. Lock it in?")) return;
     setLocking(true);
     setErr("");
     try {
@@ -148,74 +169,91 @@ export default function PickScreen({
     }
   }
 
+  const statusLine =
+    selected.length < 3
+      ? `Pick ${3 - selected.length} more coin${selected.length === 2 ? "" : "s"}`
+      : remaining > 0
+        ? `$${remaining * 100} still on the sidelines`
+        : "All $1,000 allocated — ready to lock";
+
   return (
-    <>
-      <div className="card">
-        <h2>Pick three. Split $1,000.</h2>
-        <p className="muted">
-          {dateLabel} pool · allocations in $100 steps · locks in {countdown}
-        </p>
+    <div className="pickcard">
+      <div className="pickhead">
+        <div className="pickhead-l">
+          <span className="pickbrand">1K Daily</span>
+          <span className="pickmeta">{dateLabel} · pool of {quotes.length}</span>
+        </div>
+        <div className="pickclock">Locks 12:00 AM ET · {countdown}</div>
       </div>
 
-      <div className="tilegrid">
+      <div className="barwrap">
+        <div className="barhead">
+          <span className="barlabel">Your $1,000</span>
+          <span className="barfree">${remaining * 100} unallocated</span>
+        </div>
+        <div className="chipbar">
+          {segments.map((sym, i) =>
+            sym ? (
+              <div key={i} className="chipseg" style={{ background: colorOf(sym), borderColor: colorOf(sym), color: chipTextColor(colorOf(sym)) }}>
+                {sym}
+              </div>
+            ) : (
+              <div key={i} className="chipseg empty">$100</div>
+            ),
+          )}
+        </div>
+        <div className="barlegend">
+          {selected.map((s) => (
+            <span key={s} className="legenditem">
+              <span className="swatch" style={{ background: colorOf(s) }} />
+              {s} ${(alloc.get(s) ?? 0) * 100}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="pooltiles">
         {quotes.map((q) => {
           const sel = alloc.has(q.symbol);
+          const faded = !sel && selected.length >= 3;
           return (
-            <button key={q.symbol} className={`tile${sel ? " sel" : ""}`} onClick={() => toggle(q.symbol)}>
-              <div className="t">{q.symbol}</div>
-              <div className="px">
-                {priceLabel(q.price)}{" "}
-                <span className={q.pct >= 0 ? "pos" : "neg"}>
-                  {q.pct >= 0 ? "+" : ""}{q.pct.toFixed(2)}%
+            <div
+              key={q.symbol}
+              className={`cointile${sel ? " sel" : ""}`}
+              style={{ borderColor: sel ? colorOf(q.symbol) : undefined, opacity: faded ? 0.45 : 1 }}
+            >
+              <button className="cointile-main" onClick={() => toggle(q.symbol)}>
+                <span className="cointile-top">
+                  <span className="dot" style={{ background: sel ? colorOf(q.symbol) : "#d6d9e0" }} />
+                  <span className="tick">{q.symbol}</span>
+                  <span className={`d24 ${q.pct >= 0 ? "pos" : "neg"}`}>
+                    {q.pct >= 0 ? "+" : ""}{q.pct.toFixed(2)}%
+                  </span>
                 </span>
-              </div>
-            </button>
+                <span className="priceline">{priceLabel(q.price)} · 24h</span>
+              </button>
+              {sel ? (
+                <span className="tilestep">
+                  <button className="stepbtn minus" onClick={() => step(q.symbol, -1)} disabled={(alloc.get(q.symbol) ?? 0) <= 1}>−</button>
+                  <span className="stepamt">${(alloc.get(q.symbol) ?? 0) * 100}</span>
+                  <button className="stepbtn plus" onClick={() => step(q.symbol, 1)} disabled={remaining <= 0}>+</button>
+                </span>
+              ) : null}
+            </div>
           );
         })}
       </div>
 
-      <div className="card">
-        <h2>Your $1,000</h2>
-        {selected.length < 3 ? (
-          <p className="muted">Select {3 - selected.length} more coin{selected.length === 2 ? "" : "s"} above to start allocating.</p>
-        ) : (
-          <>
-            <div className="splitbar" aria-hidden>
-              {selected.map((s, i) => {
-                const units = alloc.get(s) ?? 0;
-                return (
-                  <div key={s} className={`seg s${i}`} style={{ width: `${units * 10}%` }}>
-                    {units > 0 ? `${s} $${units * 100}` : ""}
-                  </div>
-                );
-              })}
-              {remaining > 0 ? (
-                <div className="seg rest" style={{ width: `${remaining * 10}%` }}>${remaining * 100} free</div>
-              ) : null}
-            </div>
-            <div style={{ marginTop: 10 }}>
-              {selected.map((s) => (
-                <div key={s} className="alloc-row">
-                  <span className="sym">{s}</span>
-                  <span className="tiny">{alloc.get(s)} × $100</span>
-                  <span className="step">
-                    <button onClick={() => step(s, -1)} disabled={(alloc.get(s) ?? 0) <= 1}>−</button>
-                    <span className="amt">${(alloc.get(s) ?? 0) * 100}</span>
-                    <button onClick={() => step(s, 1)} disabled={remaining <= 0}>+</button>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-        <p className="err">{err}</p>
-        <button className="cta" disabled={!valid || locking} onClick={lockIn}>
-          {locking ? "Locking…" : valid ? "Lock it in" : remaining > 0 && selected.length === 3 ? `$${remaining * 100} unallocated` : "Lock it in"}
+      <div className="pickfoot">
+        <span className="footstatus">{err || statusLine}</span>
+        <button className="lockbtn" disabled={!valid || locking} onClick={lockIn}>
+          {locking ? "Locking…" : "Lock it in"}
         </button>
-        <p className="tiny" style={{ marginTop: 8 }}>
-          Locking is final — it opens the room, where you&apos;ll see everyone else&apos;s picks.
-        </p>
       </div>
-    </>
+      <p className="tiny" style={{ padding: "0 26px 18px", margin: 0 }}>
+        Locking is final — it opens the room, where you&apos;ll see everyone else&apos;s picks.
+        The ride starts at midnight ET.
+      </p>
+    </div>
   );
 }

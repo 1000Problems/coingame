@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
 
   const pool = await poolFor(eventRef);
   const symbols = pool.map((p) => p.symbol);
+  const colors = Object.fromEntries(pool.map((p) => [p.symbol, p.color]));
 
   if (phase === "closed") {
     const board = await finalBoard(session.roomId, eventRef);
@@ -41,6 +42,7 @@ export async function GET(req: NextRequest) {
       nextCursor: chat.length ? chat[chat.length - 1].createdAt : after ?? null,
       roster: board.map((b) => ({ playerId: b.playerId, displayName: b.displayName })),
       quotes: [],
+      colors,
       me: { playerId: session.playerId, locked },
     });
   }
@@ -57,6 +59,7 @@ export async function GET(req: NextRequest) {
     eventDate: event.event_date,
     locksAt: event.locks_at,
     quotes: quotesForPool(symbols, event.event_date, now),
+    colors,
     standings,
     roster: roster.map((m) => ({ playerId: m.playerId, displayName: m.displayName, allocations: m.allocations })),
     chat,

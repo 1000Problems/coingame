@@ -11,8 +11,9 @@ restates the wire — it implements it.
 
 Every calendar day is one **event** — crypto never closes, so neither do we: no weekends,
 no holidays, 365 trophies a year. **The next two days always have an open event**
-(`ensureEvents(2)`). From the curated pool (**top 20 by market cap, stablecoins and
-pegged assets excluded** — a dollar-peg is a non-pick), a player picks **exactly 3 coins**
+(`ensureEvents(2)`). From the curated pool (**10 coins: top 10 by market cap,
+stablecoins/pegged excluded, LEO and ZEC swapped for LINK and HBAR** — see
+TASK-coingame-07), a player picks **exactly 3 coins**
 and splits **$1,000 in $100 units** (10 units) across them — notional chips, so it never
 matters that a whole BTC costs six figures. Picks start as a **private draft**; hitting
 **Lock it in** is the real, irreversible commit — and the ticket into that event's room
@@ -33,7 +34,7 @@ never pushes `game-close`; when an event resolves, the next one is appended.
 | Start price        | Official 9:30 open                     | Snapshot at `locks_at` (00:00 ET)              |
 | End price          | Official 16:00 close                   | Snapshot at 16:00 ET (the daily "mark")        |
 | Reference display  | Previous close                         | Price 24h ago (`ref_price`, crypto convention) |
-| Pool               | 30 tickers, `sector`                   | Top-20 mcap coins, `category` (L1, Meme, …)    |
+| Pool               | 30 tickers, `sector`                   | 10 coins, `category` + fixed brand `color`     |
 | Pre-market logic   | Flat $1,000 until 9:30                 | **Gone** — value live from lock                |
 | Calendar code      | Holiday list, `isTradingDay`           | **Deleted**                                    |
 | Everything else    | — unchanged: chips, lock, rooms, chat, scoring, outbox, contract surface, cron —          |
@@ -158,7 +159,11 @@ Unchanged surface. Deltas only:
 4. **Points stay = final portfolio value in cents.** "$1,000 became $1,074" still reads
    better than "+7400", and crypto's bigger daily moves make the number livelier.
 5. **Meme coins stay in the pool.** High-vol picks are the strategic spice — safe BTC
-   spread vs. a 4-chip PEPE gamble is exactly the decision the game wants to pose.
+   spread vs. a 4-chip DOGE gamble is exactly the decision the game wants to pose.
+6. **One fixed brand color per coin, everywhere** (TASK-coingame-07). Chips, bars,
+   tiles, and standings all read by color — "5 BTC bars, 3 HBAR, 2 ETH" at a glance.
+   Colors live in `coingame_coin.color`; the pick screen is the 1c "Split Bar" design
+   with per-coin colors replacing the mockup's slot-color scheme.
 
 ## Build order
 

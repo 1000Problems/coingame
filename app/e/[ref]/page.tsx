@@ -49,6 +49,7 @@ export default async function EventPage({
       getPick(session.roomId, event.ref, session.playerId),
     ]);
     const quotes = quotesForPool(pool.map((p) => p.symbol), event.event_date, now);
+    const colors = Object.fromEntries(pool.map((p) => [p.symbol, p.color]));
     return (
       <main className="wrap">
         {header}
@@ -58,6 +59,7 @@ export default async function EventPage({
           locksAt={event.locks_at}
           quotes={quotes}
           draft={pick?.allocations ?? []}
+          colors={colors}
         />
       </main>
     );

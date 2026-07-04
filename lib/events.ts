@@ -111,11 +111,16 @@ export async function openEvents(now = new Date()): Promise<EventRow[]> {
   return all.filter((e) => phaseOf(e, now) === "open");
 }
 
-export async function poolFor(ref: string): Promise<{ symbol: string; ref_price: number | null }[]> {
+export async function poolFor(ref: string): Promise<{ symbol: string; ref_price: number | null; color: string }[]> {
+  // color joins from the master pool row — the pool snapshot stays price-only.
   const rows = await sql`
-    select p.symbol, p.ref_price from coingame_event_pool p where p.event_ref = ${ref} order by p.symbol`;
+    select p.symbol, p.ref_price, c.color
+    from coingame_event_pool p
+    left join coingame_coin c on c.symbol = p.symbol
+    where p.event_ref = ${ref} order by p.symbol`;
   return rows.map((r) => ({
     symbol: String(r.symbol),
     ref_price: r.ref_price == null ? null : Number(r.ref_price),
+    color: r.color ? String(r.color) : "#8b909c",
   }));
 }

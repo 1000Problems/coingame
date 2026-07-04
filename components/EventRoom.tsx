@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { priceLabel } from "@/lib/format";
+import { chipTextColor, FALLBACK_COIN_COLOR } from "@/lib/colors";
 
 type Alloc = { symbol: string; units: number };
 type Standing = {
@@ -19,6 +20,7 @@ type RoomPayload = {
   phase: "open" | "locked" | "adjudicating" | "closed";
   closed: boolean;
   quotes: Quote[];
+  colors: Record<string, string>;
   standings: Standing[];
   chat: Msg[];
   nextCursor: string | null;
@@ -96,6 +98,7 @@ export default function EventRoom({
   if (!data) return <div className="card"><p className="muted">Loading the room…</p></div>;
 
   const mine = data.standings.find((s) => s.playerId === me);
+  const colorOf = (s: string) => data.colors?.[s] ?? FALLBACK_COIN_COLOR;
   const statusLine =
     data.phase === "open" ? "Picks are in — the ride starts at midnight ET." :
     data.phase === "locked" ? "Live — riding to the 4pm mark." :
@@ -110,8 +113,12 @@ export default function EventRoom({
         {mine ? (
           <>
             <div className="splitbar" style={{ marginTop: 8 }}>
-              {mine.allocations.map((a, i) => (
-                <div key={a.symbol} className={`seg s${i}`} style={{ width: `${a.units * 10}%` }}>
+              {mine.allocations.map((a) => (
+                <div
+                  key={a.symbol}
+                  className="seg"
+                  style={{ width: `${a.units * 10}%`, background: colorOf(a.symbol), color: chipTextColor(colorOf(a.symbol)) }}
+                >
                   {a.symbol} ${a.units * 100}
                 </div>
               ))}
@@ -163,7 +170,15 @@ export default function EventRoom({
               )}
               <span className="who">{data.closed && s.placement === 1 ? "🏆 " : ""}{s.displayName}{s.playerId === me ? " (you)" : ""}</span>
               <span className="chips">
-                {s.allocations.map((a) => <span key={a.symbol} className="chip">{a.symbol} {a.units}</span>)}
+                {s.allocations.map((a) => (
+                  <span
+                    key={a.symbol}
+                    className="chip"
+                    style={{ background: colorOf(a.symbol), color: chipTextColor(colorOf(a.symbol)) }}
+                  >
+                    {a.symbol} {a.units}
+                  </span>
+                ))}
               </span>
               <span className="val">{dollars(s.valueCents)}</span>
               <span className={`pct ${s.pct >= 0 ? "pos" : "neg"}`}>{s.pct >= 0 ? "+" : ""}{s.pct.toFixed(2)}%</span>

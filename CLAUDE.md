@@ -64,6 +64,9 @@ is pinged by a Cowork scheduled task; lazy-first settlement on reads does the re
   **computed from clock + `closed_at`**, never stored.
 - `lib/picks.ts` — draft/lock rules: exactly 3 coins, integer units 1..8 summing to 10,
   all in the event pool, hard-rejected after `locks_at`. Lock is irreversible.
+- Pool is 10 coins, each with a fixed brand color (`coingame_coin.color`) used
+  identically on every screen; pick screen is the 1c "Split Bar" design
+  (TASK-coingame-07). `lib/colors.ts` picks readable chip text per background.
 - `lib/adjudicate.ts` — lazy-first settle + board computation behind an atomic claim;
   the Cowork-scheduled daily ping of `/api/sweep` is only the zero-traffic sweeper.
 - `lib/outbox.ts` — durable outbox for `/spine` and `/close` pushes, HMAC over raw body bytes.
