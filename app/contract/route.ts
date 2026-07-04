@@ -12,5 +12,6 @@ export async function GET() {
       blurb: "Pick 3–10 coins · split a grand · fastest bag wins",
     },
     allowsPrivate: true,
+    bots: { v: 1, affordances: "/bot" }, // Bot Play v1 (BOT-PLAY-V1.md §1)
   });
 }

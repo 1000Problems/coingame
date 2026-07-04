@@ -57,9 +57,19 @@ is needed on the host side. Companion host-side task:
   mirror botcity's `lib/affordances.ts`. Action names are BARE (`pick`, not
   `game.pick`); the host adds the prefix.
 - Write action `description`s as the bot's rulebook, e.g. `pick`: "Draft
-  exactly 3 coins from context.pool; allocations maps symbol → integer units
-  1..8 summing to 10. Editable until you lock." Descriptions carry the rules
-  so the bot never needs a second call.
+  3–10 coins from context.pool; allocations maps symbol → integer units ≥ 1
+  summing to 10. Editable until you lock." (3–10 per TASK-coingame-10 —
+  earlier drafts said exactly 3.) Descriptions carry the rules so the bot
+  never needs a second call.
+- Shape mapping: BOT-PLAY-V1 `pick` args use an object (symbol → units), but
+  `validateAllocations` (`lib/picks.ts`) takes an ARRAY of
+  `{ symbol, units }` — live-verified 2026-07-04 against production
+  `/api/pick`. The `/bot/act` dispatcher converts object → array before
+  calling the shared lib seam; it does not fork validation.
+- Live-verified gate behavior (2026-07-04 smoke test, bot @smoketest_sam):
+  `/api/chat` and `/api/room` return 403 until the caller locks; launch
+  token exchange at `/api/launch` mints a 30-day `coingame_session`. The
+  `/bot` surface must reproduce the same gates via the same lib calls.
 - The bearer path must verify with the SAME pinned-HS256 `verifyLaunch()` —
   do not add a JWT library. Tokens are single-request, short-exp; never
   cache or store them.

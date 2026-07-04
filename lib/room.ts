@@ -4,11 +4,12 @@
 
 import { sql } from "@/lib/db";
 import { dateET, minuteOfDayET } from "@/lib/calendar";
-import { ensureEndPrices, ensureStartPrices, type EventRow } from "@/lib/events";
+import { ensureEndPrices, ensureStartPrices, phaseOf, poolFor, type EventRow } from "@/lib/events";
 import { cachedLiveQuotes, feedMode } from "@/lib/feed";
 import { pctChange, quoteAt, startPrice } from "@/lib/prices";
-import { lockedRoster, type Allocation } from "@/lib/picks";
+import { hasLockedPick, lockedRoster, type Allocation } from "@/lib/picks";
 import { enqueueSpine, flushOutbox } from "@/lib/outbox";
+import { settleDueEventsInBackground } from "@/lib/adjudicate";
 
 const START_CENTS = 100000; // $1,000.00
 
@@ -244,4 +245,73 @@ export async function finalBoard(roomId: string, eventRef: string): Promise<Stan
     allocations: (r.allocations ?? []) as Allocation[],
     lockedAt: r.locked_at ? new Date(String(r.locked_at)).toISOString() : null,
   }));
+}
+
+// ---- the event-room read, one seam (TASK-coingame-07-bot-play) ---------------
+
+/**
+ * The single event-room read behind BOTH `GET /api/room` and the bot `room`
+ * action. Behavior-identical extraction of the former route body: lock-gated
+ * (403 until the caller locks; closed events are spectator-visible), triggers
+ * the lazy settle sweep, and returns the exact same JSON shapes the human
+ * client has always polled. Callers wrap { status, body } in their transport.
+ */
+export async function roomView(
+  roomId: string, playerId: string, event: EventRow, after?: string, now = new Date(),
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  settleDueEventsInBackground();
+
+  const phase = phaseOf(event, now);
+  const locked = await hasLockedPick(roomId, event.ref, playerId);
+
+  if (!locked && phase !== "closed") {
+    return { status: 403, body: { error: "lock your picks to enter the room" } };
+  }
+
+  const pool = await poolFor(event.ref);
+  const symbols = pool.map((p) => p.symbol);
+  const colors = Object.fromEntries(pool.map((p) => [p.symbol, p.color]));
+
+  if (phase === "closed") {
+    const board = await finalBoard(roomId, event.ref);
+    const chat = locked ? await chatTail(roomId, event.ref, after) : [];
+    return {
+      status: 200,
+      body: {
+        phase, closed: true, standings: board, chat,
+        nextCursor: chat.length ? chat[chat.length - 1].createdAt : after ?? null,
+        roster: board.map((b) => ({ playerId: b.playerId, displayName: b.displayName })),
+        quotes: [],
+        colors,
+        me: { playerId, locked },
+      },
+    };
+  }
+
+  // Settle the 00:00 snapshot on the hot path (lazy-first, write-once), fetch
+  // quotes once, and hand the same maps to standings — one poll, one read.
+  const startPrices = await ensureStartPrices(event.ref, event.event_date, now);
+  const { quotes, prices } = await poolQuotes(symbols, event, now, startPrices);
+  const [standings, chat, roster] = await Promise.all([
+    liveStandings(roomId, event, now, startPrices, prices),
+    chatTail(roomId, event.ref, after),
+    lockedRoster(roomId, event.ref),
+  ]);
+
+  return {
+    status: 200,
+    body: {
+      phase,
+      closed: false,
+      eventDate: event.event_date,
+      locksAt: event.locks_at,
+      quotes,
+      colors,
+      standings,
+      roster: roster.map((m) => ({ playerId: m.playerId, displayName: m.displayName, allocations: m.allocations })),
+      chat,
+      nextCursor: chat.length ? chat[chat.length - 1].createdAt : after ?? null,
+      me: { playerId, locked },
+    },
+  };
 }

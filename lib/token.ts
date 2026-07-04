@@ -6,6 +6,7 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import type { NextRequest } from "next/server";
 
 export type LaunchClaims = {
   playerId: string;
@@ -100,4 +101,28 @@ export const SESSION_MAX_AGE = SESSION_TTL_S;
 export async function currentSession(): Promise<Session | null> {
   const jar = await cookies();
   return readSessionValue(jar.get(COOKIE)?.value);
+}
+
+/**
+ * Bot Play v1 auth (BOT-PLAY-V1.md §2): an `Authorization: Bearer <launch
+ * token>` header verifies statelessly with the SAME pinned-HS256
+ * `verifyLaunch` — no cookie set, no state stored. An invalid bearer is a
+ * hard null (never falls through to the cookie); no header at all falls
+ * back to `currentSession()`. Used ONLY by the /bot routes.
+ */
+export async function sessionFromRequest(req: NextRequest): Promise<Session | null> {
+  const auth = req.headers.get("authorization");
+  if (auth && auth.toLowerCase().startsWith("bearer ")) {
+    const claims = verifyLaunch(auth.slice(7).trim());
+    if (!claims) return null;
+    return {
+      playerId: claims.playerId,
+      roomId: claims.roomId,
+      displayName: claims.displayName,
+      avatar: claims.avatar ?? "",
+      returnUrl: claims.returnUrl,
+      exp: claims.exp ?? Math.floor(Date.now() / 1000) + 300,
+    };
+  }
+  return currentSession();
 }
