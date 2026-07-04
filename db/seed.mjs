@@ -14,10 +14,10 @@ function loadDatabaseUrl() {
 }
 
 const text = readFileSync(new URL("./seed.sql", import.meta.url), "utf8");
-if (/\b(insert\s+into|update|delete\s+from)\s+(?!stockgame_)[a-z_"]/i.test(text)) {
-  console.error("REFUSING TO RUN: seed.sql writes outside stockgame_ tables");
+if (/\b(insert\s+into|update|delete\s+from)\s+(?!coingame_)[a-z_"]/i.test(text)) {
+  console.error("REFUSING TO RUN: seed.sql writes outside coingame_ tables");
   process.exit(1);
 }
 const sql = neon(loadDatabaseUrl());
-await sql.query(text);
-console.log("seeded stockgame_ticker.");
+await sql(text);
+console.log("seeded coingame_ticker.");

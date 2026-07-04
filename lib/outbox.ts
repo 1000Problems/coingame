@@ -23,13 +23,13 @@ export async function enqueueSpine(
 ): Promise<void> {
   const payload = { roomId, events: [{ id: ev.id ?? randomUUID(), ...ev }] };
   await sql`
-    insert into stockgame_outbox (kind, room_id, payload)
+    insert into coingame_outbox (kind, room_id, payload)
     values ('spine', ${roomId}, ${JSON.stringify(payload)}::jsonb)`;
 }
 
 export async function enqueueClose(roomId: string, payload: Record<string, unknown>): Promise<void> {
   await sql`
-    insert into stockgame_outbox (kind, room_id, payload)
+    insert into coingame_outbox (kind, room_id, payload)
     values ('close', ${roomId}, ${JSON.stringify(payload)}::jsonb)`;
 }
 
@@ -50,8 +50,8 @@ export async function flushOutbox(limit = 20): Promise<{ sent: number; failed: n
 
   const due = await sql`
     select o.id, o.kind, o.room_id, o.payload, o.attempts, i.host_origin
-    from stockgame_outbox o
-    join stockgame_instance i on i.room_id = o.room_id
+    from coingame_outbox o
+    join coingame_instance i on i.room_id = o.room_id
     where o.delivered_at is null and o.next_try_at <= now()
     order by o.created_at asc
     limit ${limit}`;
@@ -80,12 +80,12 @@ export async function flushOutbox(limit = 20): Promise<{ sent: number; failed: n
     }
     if (ok) {
       sent++;
-      await sql`update stockgame_outbox set delivered_at = now() where id = ${row.id}`;
+      await sql`update coingame_outbox set delivered_at = now() where id = ${row.id}`;
     } else {
       failed++;
       const wait = backoffSeconds(Number(row.attempts));
       await sql`
-        update stockgame_outbox
+        update coingame_outbox
         set attempts = attempts + 1, next_try_at = now() + make_interval(secs => ${wait})
         where id = ${row.id}`;
     }

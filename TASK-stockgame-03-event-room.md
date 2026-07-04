@@ -20,7 +20,7 @@ per-event chat is a different, contract-sanctioned surface (in-game chat is scop
    locked player's allocations, countdown to `locks_at`); phase `locked`/
    `adjudicating` → live view (my 3 picks ticking with prices and %, my segmented
    $1,000 bar at current value, standings re-ranking); phase `closed` → frozen final
-   board from `stockgame_board` with winner highlight. Player without a locked pick:
+   board from `coingame_board` with winner highlight. Player without a locked pick:
    for `closed` events a spectator board view; for anything earlier, redirect to the
    pick screen (or "locks passed — you sat this one out" if drafts died).
 2. `GET /api/room?eventRef=&after=<chatCursor>` — the single poll (~15s client
@@ -34,7 +34,7 @@ per-event chat is a different, contract-sanctioned surface (in-game chat is scop
    `openPrice(sym, trading_date)`. Rank desc; tie → earlier `locked_at` ranks higher.
    Include per-player pick chips (symbols + weights) like the mockup's standings rows.
 4. `POST /api/chat` — `{ eventRef, body }`. Locked players only (403 otherwise; also
-   reject on `closed` events), max ~500 chars, insert into `stockgame_chat` keyed
+   reject on `closed` events), max ~500 chars, insert into `coingame_chat` keyed
    `(room_id, event_ref)`, enqueue spine `chat_sent` (`data: { text }`) via
    `lib/outbox.ts`. No editing/deleting messages in v1.
 5. Client: one polling hook driving the whole room (quotes, standings, chat) from
@@ -43,11 +43,11 @@ per-event chat is a different, contract-sanctioned surface (in-game chat is scop
 
 ## Implementation Notes
 
-- Roster = `select ... from stockgame_pick where room_id=$1 and event_ref=$2 and
-  status='locked'` joined to `stockgame_player`. There is no separate membership
+- Roster = `select ... from coingame_pick where room_id=$1 and event_ref=$2 and
+  status='locked'` joined to `coingame_player`. There is no separate membership
   table — the locked pick IS the membership.
 - Avatars: `<img src="{host_origin}/api/avatar/{playerId}.svg">` from
-  `stockgame_instance.host_origin`. Never draw locally (contract §2).
+  `coingame_instance.host_origin`. Never draw locally (contract §2).
 - Chat cursor: `created_at` + id tiebreak is fine; return `nextCursor`.
 - All money display from integer cents; format in one shared util.
 - Keep the poll handler fast — it's the hot path; one round trip of SQL (batched

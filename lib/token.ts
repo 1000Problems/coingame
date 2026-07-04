@@ -54,7 +54,7 @@ export type Session = {
   exp: number; // unix seconds
 };
 
-const COOKIE = "stockgame_session";
+const COOKIE = "coingame_session";
 const SESSION_TTL_S = 60 * 60 * 24 * 30; // 30 days
 
 function sign(payload: string, key: string): string {

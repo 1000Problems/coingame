@@ -42,7 +42,7 @@ export function validateAllocations(raw: unknown, poolSymbols: Set<string>): { o
 
 export async function getPick(roomId: string, eventRef: string, playerId: string): Promise<PickRow | null> {
   const rows = await sql`
-    select allocations, status, locked_at from stockgame_pick
+    select allocations, status, locked_at from coingame_pick
     where room_id = ${roomId} and event_ref = ${eventRef} and player_id = ${playerId}`;
   if (!rows.length) return null;
   const r = rows[0];
@@ -58,14 +58,14 @@ export async function saveDraft(
   roomId: string, eventRef: string, playerId: string, allocations: Allocation[],
 ): Promise<{ ok: boolean; error?: string }> {
   const rows = await sql`
-    insert into stockgame_pick (room_id, event_ref, player_id, allocations, status, updated_at)
+    insert into coingame_pick (room_id, event_ref, player_id, allocations, status, updated_at)
     select ${roomId}, ${eventRef}, ${playerId}, ${JSON.stringify(allocations)}::jsonb, 'draft', now()
-    from stockgame_event e
+    from coingame_event e
     where e.ref = ${eventRef} and e.locks_at > now() and e.closed_at is null
     on conflict (room_id, event_ref, player_id) do update
       set allocations = excluded.allocations, updated_at = now()
-      where stockgame_pick.status = 'draft'
-        and (select locks_at from stockgame_event where ref = excluded.event_ref) > now()
+      where coingame_pick.status = 'draft'
+        and (select locks_at from coingame_event where ref = excluded.event_ref) > now()
     returning status`;
   if (!rows.length) {
     const existing = await getPick(roomId, eventRef, playerId);
@@ -80,9 +80,9 @@ export async function lockPick(
   roomId: string, eventRef: string, playerId: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const rows = await sql`
-    update stockgame_pick p
+    update coingame_pick p
     set status = 'locked', locked_at = now(), updated_at = now()
-    from stockgame_event e
+    from coingame_event e
     where p.room_id = ${roomId} and p.event_ref = ${eventRef} and p.player_id = ${playerId}
       and p.status = 'draft'
       and e.ref = p.event_ref and e.locks_at > now() and e.closed_at is null
@@ -110,8 +110,8 @@ export async function lockPick(
 export async function lockedRoster(roomId: string, eventRef: string) {
   const rows = await sql`
     select p.player_id, p.allocations, p.locked_at, pl.display_name, pl.avatar_url
-    from stockgame_pick p
-    join stockgame_player pl on pl.player_id = p.player_id
+    from coingame_pick p
+    join coingame_player pl on pl.player_id = p.player_id
     where p.room_id = ${roomId} and p.event_ref = ${eventRef} and p.status = 'locked'
     order by p.locked_at asc`;
   return rows.map((r) => ({
@@ -125,7 +125,7 @@ export async function lockedRoster(roomId: string, eventRef: string) {
 
 export async function hasLockedPick(roomId: string, eventRef: string, playerId: string): Promise<boolean> {
   const rows = await sql`
-    select 1 as x from stockgame_pick
+    select 1 as x from coingame_pick
     where room_id = ${roomId} and event_ref = ${eventRef} and player_id = ${playerId} and status = 'locked'`;
   return rows.length > 0;
 }

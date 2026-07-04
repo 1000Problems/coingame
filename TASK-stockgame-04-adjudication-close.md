@@ -18,13 +18,13 @@ if we lose a push, results are gone). The game is perpetual: **never push
 1. `lib/adjudicate.ts` — `settleAndClose(ref)`, guarded by a Postgres advisory lock
    (`pg_try_advisory_lock` keyed on the ref hash; bail silently if not acquired):
    a) write `open_price`/`close_price` from `openPrice()`/`closePrice()` into
-   `stockgame_event_pool` for the event's trading date; b) for **every instance with
+   `coingame_event_pool` for the event's trading date; b) for **every instance with
    ≥1 locked pick** for this event, compute `final_cents` per player (formula in
    DESIGN-STOCKGAME.md "Scoring"), rank (tie → earlier `locked_at`), insert
-   `stockgame_board` rows; c) enqueue one `close` outbox row per instance with the
+   `coingame_board` rows; c) enqueue one `close` outbox row per instance with the
    contract §5 `event-close` shape — `{ type: "event-close", roomId, ref,
    trophyLabel: <event.trophy_label>, results: [{ playerId, points: final_cents,
-   placement }] }`, whole board; d) set `stockgame_event.closed_at`; e) call
+   placement }] }`, whole board; d) set `coingame_event.closed_at`; e) call
    `ensureEvents(2)`. Steps a–e idempotent: re-running on a closed event is a no-op.
 2. Lazy triggering: `GET /events` and `GET /api/room` check for any event past
    `settles_at` without `closed_at` and fire `settleAndClose` without blocking the
@@ -44,10 +44,10 @@ if we lose a push, results are gone). The game is perpetual: **never push
 
 ## Implementation Notes
 
-- Instances discovered per event via `select distinct room_id from stockgame_pick
+- Instances discovered per event via `select distinct room_id from coingame_pick
   where event_ref=$1 and status='locked'` — private instances (unknown roomIds
   auto-created at launch) fan out with zero extra code (contract §6).
-- An instance's push target is its own `stockgame_instance.host_origin` — do not
+- An instance's push target is its own `coingame_instance.host_origin` — do not
   assume one host origin globally.
 - Zero-participant instances: skip (no board, no push). Zero participants overall:
   still set `closed_at` and append the next event.
@@ -61,7 +61,7 @@ if we lose a push, results are gone). The game is perpetual: **never push
 - Everything under "Do Not Change" in TASK-stockgame-01.
 - Never emit `game-close` — grep the diff for `game-close` before finishing; the only
   allowed close type is `event-close`.
-- `stockgame_board` rows are write-once: no updates after insert; re-adjudication of a
+- `coingame_board` rows are write-once: no updates after insert; re-adjudication of a
   closed event must be a no-op, not a recompute.
 - Locked picks: adjudication must never read or resurrect drafts.
 

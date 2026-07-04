@@ -2,7 +2,7 @@
 // (botcity lib/db.ts pattern). Importing this module never throws at build
 // time; the connection is only created on first query.
 //
-// SHARED DB RULE: every query in this repo touches ONLY stockgame_* tables.
+// SHARED DB RULE: every query in this repo touches ONLY coingame_* tables.
 
 import { neon } from "@neondatabase/serverless";
 
@@ -19,7 +19,7 @@ function getClient(): Sql {
   return client;
 }
 
-// Tagged template: sql`select * from stockgame_event where ref = ${ref}`
+// Tagged template: sql`select * from coingame_event where ref = ${ref}`
 // Rows come back as objects (default neon config).
 export function sql(strings: TemplateStringsArray, ...values: unknown[]): Promise<Record<string, unknown>[]> {
   const c = getClient() as unknown as (

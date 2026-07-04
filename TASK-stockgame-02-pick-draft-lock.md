@@ -26,7 +26,7 @@ seeing others' picks while still editable would allow copying. Midnight ET
 2. `POST /api/pick` — `{ eventRef, allocations: [{symbol, units}] }`. Session required
    (401 otherwise). Server-side validation, all returning 4xx JSON errors: event
    exists and `phaseOf==='open'`; exactly 3 distinct symbols, all in
-   `stockgame_event_pool` for that event; integer units ≥ 1 summing to 10; existing
+   `coingame_event_pool` for that event; integer units ≥ 1 summing to 10; existing
    pick not `status='locked'`. Upserts the draft (`status='draft'`). No spine event
    for drafts.
 3. `POST /api/lock` — `{ eventRef }`. Requires an existing valid draft, `phaseOf===
@@ -34,7 +34,7 @@ seeing others' picks while still editable would allow copying. Midnight ET
    or edit a locked pick**. Enqueues one spine event to the outbox: verb `picked`,
    `data.selection` human-readable (e.g. `"NVDA $400 · AAPL $300 · TSLA $300"`) plus
    structured `data.allocations`. Responds with a redirect target of the event room.
-4. `lib/outbox.ts` — `enqueue(kind, roomId, payload)` inserts into `stockgame_outbox`;
+4. `lib/outbox.ts` — `enqueue(kind, roomId, payload)` inserts into `coingame_outbox`;
    `flush()` picks due rows (`delivered_at is null and next_try_at <= now()`), signs
    the **raw body bytes** with hex HMAC-SHA256(`ROOMS_SIGNING_KEY`) in
    `X-Rooms-Signature`, POSTs to `{host_origin}/api/rooms/spine` (or `/api/rooms/close`
@@ -62,7 +62,7 @@ seeing others' picks while still editable would allow copying. Midnight ET
 ## Do Not Change
 
 - Everything under "Do Not Change" in TASK-stockgame-01 (frozen wire names, botcity
-  repo, non-`stockgame_` tables, reference docs).
+  repo, non-`coingame_` tables, reference docs).
 - `lib/token.ts` verification logic and session cookie shape (TASK-01).
 - `lib/events.ts` `ensureEvents` / `phaseOf` semantics.
 - Spine verbs: only `picked` (and later `chat_sent`) — never invent new verbs or
@@ -75,7 +75,7 @@ seeing others' picks while still editable would allow copying. Midnight ET
       Invalid payloads (2 symbols, 11 units, symbol outside pool, units 0) all 4xx.
 - [ ] `POST /api/lock` flips status; any subsequent `POST /api/pick` for that event
       returns 4xx. No API or UI path un-locks.
-- [ ] Locking inserts exactly one `stockgame_outbox` row, kind `spine`, verb `picked`,
+- [ ] Locking inserts exactly one `coingame_outbox` row, kind `spine`, verb `picked`,
       with a stable uuid `id`; running `flush()` twice against a mock host delivers
       once (verify idempotency key reuse, not duplicate ids).
 - [ ] After `locks_at` (simulate by editing the event row), both `/api/pick` and

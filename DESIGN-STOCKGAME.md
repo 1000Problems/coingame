@@ -49,23 +49,23 @@ just those set. `lib/db.ts` = same lazy tagged-template SQL client pattern as bo
 
 The DB is shared with ~90 other 1000Problems projects. Non-negotiables:
 
-- **Every table is prefixed `stockgame_`.** No exceptions, including indexes
-  (`stockgame_*_idx`).
-- **Migrations may only ever reference `stockgame_*` objects.** No `drop`/`alter` on
+- **Every table is prefixed `coingame_`.** No exceptions, including indexes
+  (`coingame_*_idx`).
+- **Migrations may only ever reference `coingame_*` objects.** No `drop`/`alter` on
   anything else, ever. The additive migration script greps its own SQL for the prefix
   as a self-check before executing.
-- **Recommended (botcity precedent): a dedicated `stockgame_app` Neon role** scoped to
+- **Recommended (botcity precedent): a dedicated `coingame_app` Neon role** scoped to
   its own schema with zero privileges on other projects' tables. Prefix = belt, role =
   suspenders. Set this up once at provisioning; the app itself never needs to know.
 - Two-places rule inherited from botcity: every schema change lands in both
-  `db/schema.sql` (full rebuild, drops **only** `stockgame_*`) and an idempotent
+  `db/schema.sql` (full rebuild, drops **only** `coingame_*`) and an idempotent
   statement in `db/migrate-additive.mjs`.
 
 ### Tables
 
 ```sql
 -- Curated master pool. Rotation = flipping active flags.
-stockgame_ticker (
+coingame_ticker (
   symbol text primary key,          -- 'NVDA'
   name   text not null,
   sector text,
@@ -73,7 +73,7 @@ stockgame_ticker (
 )
 
 -- One row per trading day. ref is the contract eventRef, permanent once published.
-stockgame_event (
+coingame_event (
   ref          text primary key,     -- 'd-2026-07-06'
   trading_date date not null unique,
   phase        text not null default 'open',  -- open|locked|adjudicating|closed
@@ -85,8 +85,8 @@ stockgame_event (
 
 -- The pool snapshot for an event, with settled prices. The adjudication source of
 -- truth — when real data arrives later, only the writer of open/close changes.
-stockgame_event_pool (
-  event_ref  text not null references stockgame_event(ref),
+coingame_event_pool (
+  event_ref  text not null references coingame_event(ref),
   symbol     text not null,
   prev_close numeric(12,4),
   open_price numeric(12,4),          -- settled at 09:30 ET
@@ -96,7 +96,7 @@ stockgame_event_pool (
 
 -- One row per roomId we've ever seen (public room + every private instance).
 -- allowsPrivate: true — any unknown roomId auto-creates a row, idempotently.
-stockgame_instance (
+coingame_instance (
   room_id       text primary key,    -- host uuid, echoed on every push
   host_origin   text not null,       -- origin of returnUrl: avatars + push target
   return_url    text not null,
@@ -104,7 +104,7 @@ stockgame_instance (
 )
 
 -- One row per pseudonymous player. Never an email, never a real id.
-stockgame_player (
+coingame_player (
   player_id    text primary key,     -- 'p_79c5f9d8dd4e0756' from the launch token
   display_name text not null,
   avatar_url   text,
@@ -115,10 +115,10 @@ stockgame_player (
 -- status 'draft' = editable, private. 'locked' = irreversible, admits the player
 -- to the event room. Drafts still unlocked at locks_at are dead — never scored.
 -- Server rejects any write after locks_at, regardless of UI state (contract rule).
-stockgame_pick (
-  room_id    text not null references stockgame_instance(room_id),
-  event_ref  text not null references stockgame_event(ref),
-  player_id  text not null references stockgame_player(player_id),
+coingame_pick (
+  room_id    text not null references coingame_instance(room_id),
+  event_ref  text not null references coingame_event(ref),
+  player_id  text not null references coingame_player(player_id),
   allocations jsonb not null,        -- [{"symbol":"NVDA","units":4}, ...]
   status     text not null default 'draft',   -- draft | locked
   locked_at  timestamptz,                     -- set once, at lock; tie-breaker
@@ -127,7 +127,7 @@ stockgame_pick (
 )
 
 -- Adjudicated board per instance per event (what event-close pushes).
-stockgame_board (
+coingame_board (
   room_id     text not null,
   event_ref   text not null,
   player_id   text not null,
@@ -137,7 +137,7 @@ stockgame_board (
 )
 
 -- In-game live-room chat, per instance (contract: in-game chat is per-roomId).
-stockgame_chat (
+coingame_chat (
   id         uuid primary key default gen_random_uuid(),
   room_id    text not null,
   event_ref  text not null,
@@ -148,7 +148,7 @@ stockgame_chat (
 
 -- Durable outbox for /spine and /close pushes (contract: keep close pushes
 -- durable on your side — host-pull recovery is deferred).
-stockgame_outbox (
+coingame_outbox (
   id           uuid primary key default gen_random_uuid(),
   kind         text not null,        -- 'spine' | 'close'
   room_id      text not null,
@@ -174,7 +174,7 @@ price(symbol, t) -> numeric      // geometric walk, PRNG seeded by (symbol, trad
 Deterministic by construction: every serverless invocation, every user, every instance
 sees identical prices for the same minute, with zero shared state and zero crons for
 ticking. Open (9:30) and close (16:00) fall out of the same function; at settle time we
-**write them into `stockgame_event_pool`**, and adjudication reads only that table.
+**write them into `coingame_event_pool`**, and adjudication reads only that table.
 Swapping in Finnhub/Polygon later touches exactly two code paths — the quote read and
 the settle write — and nothing downstream. Off-hours the walk keeps drifting gently
 (the mockups' "after-hours moves tick live").
@@ -247,7 +247,7 @@ swarm bots can play headlessly with nothing but a launch token:**
   player to the event room.
 - `GET /api/room?eventRef=` — live room poll (~15s): quotes, your bar, standings, chat
   tail. Standings computed on the fly from picks × `price(symbol, now)`.
-- `POST /api/chat` — appends to `stockgame_chat`, enqueues `chat_sent` spine event.
+- `POST /api/chat` — appends to `coingame_chat`, enqueues `chat_sent` spine event.
 
 **Outbound (via outbox, HMAC over raw body bytes):**
 - `POST {host_origin}/api/rooms/spine` — verbs `picked`, `pick_changed`, `chat_sent`;

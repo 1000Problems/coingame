@@ -23,7 +23,7 @@ deployed URL on botcity's `/developer` page must show the game's name (from
    EXISTS` / `ALTER ... ADD COLUMN IF NOT EXISTS`, reads `DATABASE_URL` from env or
    `.env.local`). Both scripts must run a **prefix self-check before executing**: scan
    their own SQL for `create table|drop table|alter table` targets and abort loudly if
-   any target doesn't start with `stockgame_`. The Neon DB is shared with ~90 projects.
+   any target doesn't start with `coingame_`. The Neon DB is shared with ~90 projects.
 3. Core libs in `lib/`:
    - `db.ts` — lazily-initialised tagged-template `sql` client over
      `@neondatabase/serverless` (copy the pattern from
@@ -37,13 +37,13 @@ deployed URL on botcity's `/developer` page must show the game's name (from
    - `token.ts` — `verifyLaunch(t)` exactly as specified in GAME-INTEGRATION-V2.md §1
      (pinned HS256, `timingSafeEqual`, 60s exp skew, never trust the token's `alg`);
      plus `mintSession(claims)` / `readSession()` — httpOnly cookie
-     `stockgame_session`, HS256-signed JSON `{playerId, roomId, displayName, avatar,
+     `coingame_session`, HS256-signed JSON `{playerId, roomId, displayName, avatar,
      returnUrl, exp}` using `ROOMS_SIGNING_KEY`.
    - `events.ts` — `ensureEvents(2)` (idempotent insert for the next 2 trading days:
      `ref = 'd-YYYY-MM-DD'`, `locks_at` = midnight ET before trading_date, `settles_at`
      = 16:10 ET, trophy label like `Daily Champ · Jul 6`; snapshot the active
-     `stockgame_ticker` pool with `prev_close` from `prices.ts` into
-     `stockgame_event_pool`) and `phaseOf(event, now)` — computed, never stored:
+     `coingame_ticker` pool with `prev_close` from `prices.ts` into
+     `coingame_event_pool`) and `phaseOf(event, now)` — computed, never stored:
      `closed_at ? 'closed' : now>=settles_at ? 'adjudicating' : now>=locks_at ?
      'locked' : 'open'`.
 4. Contract routes (real server routes, `content-type: application/json`, at domain
@@ -54,12 +54,12 @@ deployed URL on botcity's `/developer` page must show the game's name (from
      "events": [...] }` — last 7 closed events plus everything not closed, each
      `{ ref, label, group, phase, expectedLockAt }` per contract §3. Top-level phase
      is **always** `"open"` (perpetual game).
-   - `GET /?t=...` (home route handler): verify token → upsert `stockgame_player` and
-     `stockgame_instance` (store `host_origin` = origin of `returnUrl`) → mint session
+   - `GET /?t=...` (home route handler): verify token → upsert `coingame_player` and
+     `coingame_instance` (store `host_origin` = origin of `returnUrl`) → mint session
      cookie → redirect to `/e/<eventRef>` stripping `?t=` (unknown/absent `eventRef` →
      `/`). Invalid/absent token → existing session or guest view; never crash, never
      redirect-loop.
-5. Seed + pages: `db/seed.sql` with ~30 real-looking tickers in `stockgame_ticker`;
+5. Seed + pages: `db/seed.sql` with ~30 real-looking tickers in `coingame_ticker`;
    minimal `/` home (session → list open events with links to `/e/[ref]`; guest →
    static explainer) and a placeholder `/e/[ref]` page showing event ref + computed
    phase (real screens come in TASK-02/03). Persistent "Return to PickCity" link
@@ -87,7 +87,7 @@ deployed URL on botcity's `/developer` page must show the game's name (from
 - Frozen wire names: `roomId`, `t`, `eventRef`, `ROOMS_SIGNING_KEY`,
   `X-Rooms-Signature`, `/api/rooms/close`, `/api/rooms/spine`, `/contract`, `/events`,
   `/api/avatar/{playerId}.svg`.
-- DB: any table not prefixed `stockgame_`. Never `drop`/`alter`/`select` anything
+- DB: any table not prefixed `coingame_`. Never `drop`/`alter`/`select` anything
   outside the prefix; the shared Neon DB has ~90 other projects' tables.
 - JWT verification: never switch to a JWT library that reads the token's `alg` header.
 
@@ -95,7 +95,7 @@ deployed URL on botcity's `/developer` page must show the game's name (from
 
 - [ ] `npm run build` passes with zero errors.
 - [ ] `node db/migrate-additive.mjs` is idempotent (runs twice cleanly) and aborts if a
-      non-`stockgame_` table name is injected into its SQL (test by temporarily adding
+      non-`coingame_` table name is injected into its SQL (test by temporarily adding
       one).
 - [ ] `curl -i localhost:3000/contract` → `application/json`, `contract: 2`,
       `display.name` present.

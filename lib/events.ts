@@ -59,19 +59,19 @@ export async function ensureEvents(n = 2): Promise<void> {
   for (const d of days) {
     const ref = refFor(d);
     const inserted = await sql`
-      insert into stockgame_event (ref, trading_date, locks_at, settles_at, trophy_label)
+      insert into coingame_event (ref, trading_date, locks_at, settles_at, trophy_label)
       values (${ref}, ${d}, ${locksAt(d).toISOString()}, ${settlesAt(d).toISOString()},
               ${"Daily Champ · " + shortLabelFor(d)})
       on conflict (ref) do nothing
       returning ref`;
     if (inserted.length > 0) {
       // Snapshot the pool. prev_close from the deterministic feed.
-      const tickers = await sql`select symbol from stockgame_ticker where active order by symbol`;
+      const tickers = await sql`select symbol from coingame_ticker where active order by symbol`;
       const prev = prevTradingDay(d);
       for (const t of tickers) {
         const symbol = String(t.symbol);
         await sql`
-          insert into stockgame_event_pool (event_ref, symbol, prev_close)
+          insert into coingame_event_pool (event_ref, symbol, prev_close)
           values (${ref}, ${symbol}, ${closePrice(symbol, prev)})
           on conflict (event_ref, symbol) do nothing`;
       }
@@ -80,16 +80,16 @@ export async function ensureEvents(n = 2): Promise<void> {
 }
 
 export async function getEvent(ref: string): Promise<EventRow | null> {
-  const rows = await sql`select * from stockgame_event where ref = ${ref}`;
+  const rows = await sql`select * from coingame_event where ref = ${ref}`;
   return rows.length ? rowToEvent(rows[0]) : null;
 }
 
 /** Window for GET /events: last 7 closed + everything not closed. */
 export async function eventsWindow(): Promise<EventRow[]> {
   const rows = await sql`
-    (select * from stockgame_event where closed_at is not null order by trading_date desc limit 7)
+    (select * from coingame_event where closed_at is not null order by trading_date desc limit 7)
     union all
-    (select * from stockgame_event where closed_at is null)
+    (select * from coingame_event where closed_at is null)
     order by trading_date asc`;
   return rows.map(rowToEvent);
 }
@@ -113,7 +113,7 @@ export async function openEvents(now = new Date()): Promise<EventRow[]> {
 
 export async function poolFor(ref: string): Promise<{ symbol: string; prev_close: number | null }[]> {
   const rows = await sql`
-    select p.symbol, p.prev_close from stockgame_event_pool p where p.event_ref = ${ref} order by p.symbol`;
+    select p.symbol, p.prev_close from coingame_event_pool p where p.event_ref = ${ref} order by p.symbol`;
   return rows.map((r) => ({
     symbol: String(r.symbol),
     prev_close: r.prev_close == null ? null : Number(r.prev_close),

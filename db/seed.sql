@@ -1,6 +1,6 @@
 -- Curated 30-ticker pool for 1K Daily. Names/sectors for display only; every
 -- price in the game comes from the deterministic fake feed (lib/prices.ts).
-insert into stockgame_ticker (symbol, name, sector) values
+insert into coingame_ticker (symbol, name, sector) values
   ('NVDA', 'NVIDIA',            'Semis'),
   ('AAPL', 'Apple',             'Tech'),
   ('MSFT', 'Microsoft',         'Tech'),

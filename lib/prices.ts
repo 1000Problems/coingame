@@ -13,7 +13,7 @@
 //
 // Swapping in a real feed later: replace the reads in quoteAt/openPrice/
 // closePrice; everything downstream consumes settled prices from
-// stockgame_event_pool and never calls this at adjudication time again.
+// coingame_event_pool and never calls this at adjudication time again.
 
 import { isTradingDay, prevTradingDay } from "@/lib/calendar";
 

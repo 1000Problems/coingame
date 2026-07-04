@@ -15,7 +15,7 @@ plan).
 ```bash
 npm install
 cp .env.local.example .env.local   # fill in DATABASE_URL (+ a dev ROOMS_SIGNING_KEY)
-node db/migrate-additive.mjs       # SAFE: idempotent, stockgame_* only, self-guarding
+node db/migrate-additive.mjs       # SAFE: idempotent, coingame_* only, self-guarding
 node db/seed.mjs                   # 30-ticker pool
 npm run dev
 node scripts/mint-test-token.mjs   # prints a launch URL to paste in the browser
@@ -25,18 +25,18 @@ node scripts/mint-test-token.mjs   # prints a launch URL to paste in the browser
 
 ## Shared-DB safety
 
-The Neon DB is shared with ~90 projects. Every table is prefixed `stockgame_`;
+The Neon DB is shared with ~90 projects. Every table is prefixed `coingame_`;
 both DB scripts refuse to run if their SQL targets anything else. Production
 should use a dedicated Neon role scoped to these tables (mirror `botcity_app`).
 Two-places rule: schema changes land in `db/schema.sql` (destructive rebuild,
-drops only `stockgame_*`) AND `db/migrate-additive.mjs`.
+drops only `coingame_*`) AND `db/migrate-additive.mjs`.
 
 ## Prices are fake (on purpose)
 
 `lib/prices.ts` is a pure deterministic function — same symbol/date/minute →
 same price everywhere, no feed, no cron, reproducible adjudication. Swapping in
 a real feed later touches only the quote read and the settle write; everything
-downstream reads settled prices from `stockgame_event_pool`.
+downstream reads settled prices from `coingame_event_pool`.
 
 ## Connect to botcity
 

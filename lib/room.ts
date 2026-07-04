@@ -92,13 +92,13 @@ export async function chatTail(roomId: string, eventRef: string, after?: string,
   const rows = after
     ? await sql`
         select c.id, c.player_id, c.body, c.created_at, pl.display_name
-        from stockgame_chat c join stockgame_player pl on pl.player_id = c.player_id
+        from coingame_chat c join coingame_player pl on pl.player_id = c.player_id
         where c.room_id = ${roomId} and c.event_ref = ${eventRef} and c.created_at > ${after}
         order by c.created_at asc limit ${limit}`
     : await sql`
         select * from (
           select c.id, c.player_id, c.body, c.created_at, pl.display_name
-          from stockgame_chat c join stockgame_player pl on pl.player_id = c.player_id
+          from coingame_chat c join coingame_player pl on pl.player_id = c.player_id
           where c.room_id = ${roomId} and c.event_ref = ${eventRef}
           order by c.created_at desc limit ${limit}
         ) t order by created_at asc`;
@@ -117,7 +117,7 @@ export async function postChat(
   const text = body.trim().slice(0, 500);
   if (!text) return { ok: false, error: "empty message" };
   await sql`
-    insert into stockgame_chat (room_id, event_ref, player_id, body)
+    insert into coingame_chat (room_id, event_ref, player_id, body)
     values (${roomId}, ${eventRef}, ${playerId}, ${text})`;
   await enqueueSpine(roomId, {
     playerId,
@@ -135,9 +135,9 @@ export async function postChat(
 export async function finalBoard(roomId: string, eventRef: string): Promise<StandingRow[]> {
   const rows = await sql`
     select b.player_id, b.final_cents, b.placement, pl.display_name, pl.avatar_url, p.allocations
-    from stockgame_board b
-    join stockgame_player pl on pl.player_id = b.player_id
-    left join stockgame_pick p on p.room_id = b.room_id and p.event_ref = b.event_ref and p.player_id = b.player_id
+    from coingame_board b
+    join coingame_player pl on pl.player_id = b.player_id
+    left join coingame_pick p on p.room_id = b.room_id and p.event_ref = b.event_ref and p.player_id = b.player_id
     where b.room_id = ${roomId} and b.event_ref = ${eventRef}
     order by b.placement asc`;
   return rows.map((r) => ({
