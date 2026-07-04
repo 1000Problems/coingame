@@ -7,7 +7,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentSession } from "@/lib/token";
 import { ensureEvents, eventsWindow, phaseOf } from "@/lib/events";
-import { labelFor } from "@/lib/calendar";
+import { endsAt, labelFor } from "@/lib/calendar";
+import GameTimer from "@/components/GameTimer";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,7 @@ export default async function Home({
           return (
             <Link key={e.ref} href={`/e/${encodeURIComponent(e.ref)}`}>
               <span>Coin Picks · {labelFor(e.event_date)}</span>
+              <GameTimer startsAt={e.locks_at} endsAt={endsAt(e.event_date).toISOString()} />
               <span className={`pill ${phase}`}>{phase}</span>
             </Link>
           );

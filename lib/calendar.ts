@@ -76,6 +76,12 @@ export function settlesAt(eventDate: string): Date {
   return etInstant(eventDate, 16, 10);
 }
 
+/** 16:00 ET on `eventDate` — the finish line the ride actually ends at.
+ * NOT settlesAt (16:10), which is adjudication plumbing. */
+export function endsAt(eventDate: string): Date {
+  return etInstant(eventDate, 16, 0);
+}
+
 const labelFmt = new Intl.DateTimeFormat("en-US", {
   timeZone: ET, weekday: "short", month: "short", day: "numeric",
 });

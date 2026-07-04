@@ -10,10 +10,11 @@ import { currentSession } from "@/lib/token";
 import { getEvent, phaseOf, poolFor } from "@/lib/events";
 import { getPick, hasLockedPick } from "@/lib/picks";
 import { quotesForPool } from "@/lib/room";
-import { labelFor } from "@/lib/calendar";
+import { endsAt, labelFor } from "@/lib/calendar";
 import { settleDueEventsInBackground } from "@/lib/adjudicate";
 import PickScreen from "@/components/PickScreen";
 import EventRoom from "@/components/EventRoom";
+import GameTimer from "@/components/GameTimer";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export default async function EventPage({
   const header = (
     <div className="topbar">
       <span className="brand">1K Daily <small>{dateLabel}</small></span>
+      <GameTimer startsAt={event.locks_at} endsAt={endsAt(event.event_date).toISOString()} />
       <a className="returnlink" href={session.returnUrl}>← Return to PickCity</a>
     </div>
   );
