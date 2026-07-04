@@ -1,0 +1,202 @@
+"use client";
+
+// The event room (Live Room mockup): my picks ticking, my $1,000 bar,
+// standings re-ranking live, per-event chat. One ~15s poll drives everything.
+// Lock-gated server-side; this component assumes admission.
+
+import { useCallback, useEffect, useRef, useState } from "react";
+
+type Alloc = { symbol: string; units: number };
+type Standing = {
+  playerId: string; displayName: string; avatarUrl: string | null;
+  valueCents: number; pct: number; placement: number; allocations: Alloc[];
+};
+type Quote = { symbol: string; price: number; pct: number };
+type Msg = { id: string; playerId: string; displayName: string; body: string; createdAt: string };
+
+type RoomPayload = {
+  phase: "open" | "locked" | "adjudicating" | "closed";
+  closed: boolean;
+  quotes: Quote[];
+  standings: Standing[];
+  chat: Msg[];
+  nextCursor: string | null;
+  me: { playerId: string; locked: boolean };
+  error?: string;
+};
+
+function dollars(cents: number): string {
+  const d = Math.floor(Math.abs(cents) / 100);
+  const c = Math.abs(cents) % 100;
+  return `${cents < 0 ? "-" : ""}$${d.toLocaleString("en-US")}.${String(c).padStart(2, "0")}`;
+}
+
+export default function EventRoom({
+  eventRef, dateLabel, me,
+}: {
+  eventRef: string;
+  dateLabel: string;
+  me: string;
+}) {
+  const [data, setData] = useState<RoomPayload | null>(null);
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [draft, setDraft] = useState("");
+  const [err, setErr] = useState("");
+  const cursor = useRef<string | null>(null);
+  const seen = useRef<Set<string>>(new Set());
+  const chatEnd = useRef<HTMLDivElement | null>(null);
+
+  const poll = useCallback(async () => {
+    try {
+      const qs = new URLSearchParams({ eventRef });
+      if (cursor.current) qs.set("after", cursor.current);
+      const r = await fetch(`/api/room?${qs}`, { cache: "no-store" });
+      if (!r.ok) return;
+      const j: RoomPayload = await r.json();
+      setData(j);
+      if (Array.isArray(j.chat) && j.chat.length) {
+        setMsgs((prev) => {
+          const add = j.chat.filter((m) => !seen.current.has(m.id));
+          add.forEach((m) => seen.current.add(m.id));
+          return [...prev, ...add];
+        });
+      }
+      if (j.nextCursor) cursor.current = j.nextCursor;
+    } catch {}
+  }, [eventRef]);
+
+  useEffect(() => {
+    poll();
+    const id = setInterval(poll, 15000);
+    return () => clearInterval(id);
+  }, [poll]);
+
+  useEffect(() => {
+    chatEnd.current?.scrollIntoView({ block: "nearest" });
+  }, [msgs.length]);
+
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    const body = draft.trim();
+    if (!body) return;
+    setDraft("");
+    setErr("");
+    try {
+      const r = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ eventRef, body }),
+      });
+      if (!r.ok) { setErr((await r.json()).error ?? "couldn't send"); return; }
+      poll(); // pull the message (and anyone else's) right away
+    } catch { setErr("network hiccup"); }
+  }
+
+  if (!data) return <div className="card"><p className="muted">Loading the room…</p></div>;
+
+  const mine = data.standings.find((s) => s.playerId === me);
+  const statusLine =
+    data.phase === "open" ? "Waiting for the open — picks are in." :
+    data.phase === "locked" ? "Live — riding the day." :
+    data.phase === "adjudicating" ? "Closing bell — settling the board…" :
+    "Final board.";
+
+  return (
+    <>
+      <div className="card">
+        <h2>{dateLabel} · The Room <span className={`pill ${data.phase}`}>{data.phase}</span></h2>
+        <p className="muted">{statusLine}</p>
+        {mine ? (
+          <>
+            <div className="splitbar" style={{ marginTop: 8 }}>
+              {mine.allocations.map((a, i) => (
+                <div key={a.symbol} className={`seg s${i}`} style={{ width: `${a.units * 10}%` }}>
+                  {a.symbol} ${a.units * 100}
+                </div>
+              ))}
+            </div>
+            <p style={{ margin: "8px 0 0", fontWeight: 800, fontSize: 18 }}>
+              {dollars(mine.valueCents)}{" "}
+              <span className={mine.pct >= 0 ? "pos" : "neg"} style={{ fontSize: 14 }}>
+                {mine.pct >= 0 ? "+" : ""}{mine.pct.toFixed(2)}%
+              </span>{" "}
+              <span className="tiny">· you&apos;re #{mine.placement}</span>
+            </p>
+          </>
+        ) : null}
+      </div>
+
+      {!data.closed && data.quotes.length && mine ? (
+        <div className="card">
+          <h2>Your picks</h2>
+          <div className="rows">
+            {mine.allocations.map((a) => {
+              const q = data.quotes.find((x) => x.symbol === a.symbol);
+              return (
+                <div key={a.symbol} className="row">
+                  <span className="who">{a.symbol}</span>
+                  <span className="tiny">${a.units * 100}</span>
+                  <span className="val">{q ? `$${q.price.toFixed(2)}` : "—"}</span>
+                  <span className={`pct ${q && q.pct >= 0 ? "pos" : "neg"}`}>
+                    {q ? `${q.pct >= 0 ? "+" : ""}${q.pct.toFixed(2)}%` : ""}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="card">
+        <h2>{data.closed ? "Final board" : "Room standings"}</h2>
+        <p className="tiny">{data.standings.length} player{data.standings.length === 1 ? "" : "s"}{data.closed ? "" : " · re-ranks live"}</p>
+        <div className="rows">
+          {data.standings.map((s) => (
+            <div key={s.playerId} className={`row${s.playerId === me ? " me" : ""}${data.closed && s.placement === 1 ? " winner" : ""}`}>
+              <span className="rank">{s.placement}</span>
+              {s.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- host-rendered SVG avatar (contract §2)
+                <img className="avatar" src={s.avatarUrl} alt="" width={28} height={28} />
+              ) : (
+                <span className="avatar" />
+              )}
+              <span className="who">{data.closed && s.placement === 1 ? "🏆 " : ""}{s.displayName}{s.playerId === me ? " (you)" : ""}</span>
+              <span className="chips">
+                {s.allocations.map((a) => <span key={a.symbol} className="chip">{a.symbol} {a.units}</span>)}
+              </span>
+              <span className="val">{dollars(s.valueCents)}</span>
+              <span className={`pct ${s.pct >= 0 ? "pos" : "neg"}`}>{s.pct >= 0 ? "+" : ""}{s.pct.toFixed(2)}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {data.me.locked && !data.closed ? (
+        <div className="card">
+          <h2>Room chat</h2>
+          <div className="chatbox">
+            {msgs.map((m) => (
+              <div key={m.id} className="msg">
+                <div>
+                  <div className="name">{m.displayName}</div>
+                  <div className="body">{m.body}</div>
+                </div>
+              </div>
+            ))}
+            <div ref={chatEnd} />
+          </div>
+          <form className="chatform" onSubmit={send}>
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Say something…"
+              maxLength={500}
+            />
+            <button type="submit">Send</button>
+          </form>
+          <p className="err">{err}</p>
+        </div>
+      ) : null}
+    </>
+  );
+}
