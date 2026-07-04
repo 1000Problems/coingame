@@ -9,7 +9,7 @@ import { redirect } from "next/navigation";
 import { currentSession } from "@/lib/token";
 import { getEvent, phaseOf, poolFor } from "@/lib/events";
 import { getPick, hasLockedPick } from "@/lib/picks";
-import { quotesForPool } from "@/lib/room";
+import { poolQuotes } from "@/lib/room";
 import { endsAt, labelFor } from "@/lib/calendar";
 import { settleDueEventsInBackground } from "@/lib/adjudicate";
 import PickScreen from "@/components/PickScreen";
@@ -50,7 +50,7 @@ export default async function EventPage({
       poolFor(event.ref),
       getPick(session.roomId, event.ref, session.playerId),
     ]);
-    const quotes = quotesForPool(pool.map((p) => p.symbol), event.event_date, now);
+    const { quotes } = await poolQuotes(pool.map((p) => p.symbol), event, now);
     const colors = Object.fromEntries(pool.map((p) => [p.symbol, p.color]));
     return (
       <main className="wrap">

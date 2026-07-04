@@ -5,9 +5,10 @@
 
 import { sql } from "@/lib/db";
 import {
-  labelFor, locksAt, nextDays, prevDay, settlesAt, shortLabelFor, todayET,
+  endsAt, labelFor, locksAt, nextDays, prevDay, settlesAt, shortLabelFor, todayET,
 } from "@/lib/calendar";
 import { endPrice, startPrice } from "@/lib/prices";
+import { feedMode, priceAtInstant } from "@/lib/feed";
 
 export type Phase = "open" | "locked" | "adjudicating" | "closed";
 
@@ -65,14 +66,16 @@ export async function ensureEvents(n = 2): Promise<void> {
       on conflict (ref) do nothing
       returning ref`;
     if (inserted.length > 0) {
-      // Snapshot the pool. ref_price from the deterministic tape.
+      // Snapshot the pool. ref_price: tape mode only — in kraken mode it stays
+      // null (display reference, consumed by no UI; grep-verified TASK-14b).
       const coins = await sql`select symbol from coingame_coin where active order by symbol`;
       const prev = prevDay(d);
       for (const c of coins) {
         const symbol = String(c.symbol);
+        const refPrice = feedMode() === "tape" ? endPrice(symbol, prev) : null;
         await sql`
           insert into coingame_event_pool (event_ref, symbol, ref_price)
-          values (${ref}, ${symbol}, ${endPrice(symbol, prev)})
+          values (${ref}, ${symbol}, ${refPrice})
           on conflict (event_ref, symbol) do nothing`;
       }
     }
@@ -113,10 +116,11 @@ export async function openEvents(now = new Date()): Promise<EventRow[]> {
 
 /**
  * Settle 00:00 ET start prices at (or after) the gun — lazy-first, write-once
- * (TASK-coingame-13). Called from hot reads; adjudication is the backstop.
- * `start_price IS NULL` guard means first writer wins, which stays correct
- * when the deterministic tape is swapped for a real feed. Returns symbol →
- * start price: settled value if stored, tape fallback if not (yet) settled.
+ * (TASK-coingame-13/14b). Called from hot reads; adjudication is the backstop.
+ * Kraken mode reads the OHLC candle that opened at the gun — the exact same
+ * number no matter when this runs. A symbol Kraken can't answer for right now
+ * is OMITTED from the map (no write, retried on the next read); callers treat
+ * missing keys as "no data yet". Tape mode keeps the old always-known behavior.
  */
 export async function ensureStartPrices(
   ref: string, eventDate: string, now = new Date(),
@@ -124,16 +128,53 @@ export async function ensureStartPrices(
   const rows = await sql`
     select symbol, start_price from coingame_event_pool where event_ref = ${ref}`;
   const started = now >= locksAt(eventDate);
+  const kraken = feedMode() === "kraken";
   const map: Record<string, number> = {};
   for (const r of rows) {
     const symbol = String(r.symbol);
     if (r.start_price != null) { map[symbol] = Number(r.start_price); continue; }
-    const p = startPrice(symbol, eventDate);
-    if (started) {
-      await sql`
-        update coingame_event_pool set start_price = ${p}
-        where event_ref = ${ref} and symbol = ${symbol} and start_price is null`;
+    if (!started) {
+      if (!kraken) map[symbol] = startPrice(symbol, eventDate); // pre-gun tape preview
+      continue;
     }
+    const p = kraken
+      ? await priceAtInstant(symbol, locksAt(eventDate))
+      : startPrice(symbol, eventDate);
+    if (p == null) continue; // unrecoverable right now — retry on next read
+    await sql`
+      update coingame_event_pool set start_price = ${p}
+      where event_ref = ${ref} and symbol = ${symbol} and start_price is null`;
+    map[symbol] = p;
+  }
+  return map;
+}
+
+/**
+ * Settle 16:00 ET end prices — identical pattern to ensureStartPrices
+ * (TASK-coingame-14b). Lazily fills end_price write-once from the finish-line
+ * candle as soon as anything reads the event past 16:00; keeps the invariant
+ * that the last live poll equals the adjudicated board (post-16:00 quotes are
+ * served FROM these settled values). Adjudication requires completeness.
+ */
+export async function ensureEndPrices(
+  ref: string, eventDate: string, now = new Date(),
+): Promise<Record<string, number>> {
+  const rows = await sql`
+    select symbol, end_price from coingame_event_pool where event_ref = ${ref}`;
+  const ended = now >= endsAt(eventDate);
+  const kraken = feedMode() === "kraken";
+  const map: Record<string, number> = {};
+  for (const r of rows) {
+    const symbol = String(r.symbol);
+    if (r.end_price != null) { map[symbol] = Number(r.end_price); continue; }
+    if (!ended) continue;
+    const p = kraken
+      ? await priceAtInstant(symbol, endsAt(eventDate))
+      : endPrice(symbol, eventDate);
+    if (p == null) continue; // retry on next read
+    await sql`
+      update coingame_event_pool set end_price = ${p}
+      where event_ref = ${ref} and symbol = ${symbol} and end_price is null`;
     map[symbol] = p;
   }
   return map;

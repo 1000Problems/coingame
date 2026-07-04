@@ -47,16 +47,25 @@ The Neon DB is **shared with ~90 other 1000Projects projects**. Non-negotiables:
 ## Architecture
 
 Next.js (App Router) + React on Vercel. No ORM, no auth provider. Runtime deps: `next`,
-`react`, `@neondatabase/serverless`. Env: `DATABASE_URL`, `ROOMS_SIGNING_KEY` — that's
-all. No Vercel cron: the daily sweeper (`GET /api/sweep`, unauthenticated, idempotent)
-is pinged by a Cowork scheduled task; lazy-first settlement on reads does the real work.
+`react`, `@neondatabase/serverless`. Env: `DATABASE_URL`, `ROOMS_SIGNING_KEY`
+(+ optional `PRICE_FEED=tape` for dev). No Vercel cron: the daily sweeper
+(`GET /api/sweep`, unauthenticated, idempotent) is pinged by a Cowork scheduled task
+(~16:12 ET); lazy-first settlement on reads does the real work.
 
 - `lib/db.ts` — lazy tagged-template SQL client (botcity pattern); importing never throws at build time.
-- `lib/prices.ts` — **deterministic fake 24/7 price tape.** Pure functions: same
-  (symbol, date, minute) → same price on every invocation, no feed, no state. Daily
-  marks anchor at 16:00 ET; a geometric bridge with end-pinned noise connects them.
-  Adjudication never reads this at close time — it reads settled prices from
-  `coingame_event_pool` (`start_price` at 00:00 ET, `end_price` at 16:00 ET).
+- `lib/feed.ts` — **the real market data source (TASK-coingame-14a/b): Kraken public
+  API, request-driven only.** `cachedLiveQuotes` = current prices via `coingame_quote`
+  (~20s TTL, single-flight claim, one batched Ticker call per window, zero players =
+  zero calls). `priceAtInstant` = the exact price at a past instant via OHLC candles
+  (open of the candle that opened then) — settlement runs at ANY time after 00:00/16:00
+  and gets identical numbers. Never throws; null/stale on failure.
+- `lib/prices.ts` — **deterministic fake 24/7 price tape**, active only under
+  `PRICE_FEED=tape` (dev/tests/emergency). Pure functions: same (symbol, date, minute)
+  → same price on every invocation. Daily marks anchor at 16:00 ET; a geometric bridge
+  with end-pinned noise connects them. Either mode, adjudication never reads a live
+  source at close time — it reads settled prices from `coingame_event_pool`
+  (`start_price` at 00:00 ET, `end_price` at 16:00 ET), filled write-once by
+  `ensureStartPrices`/`ensureEndPrices` and complete-or-abort guarded in `adjudicate`.
 - `lib/calendar.ts` — ET time helpers only. **No market calendar** — every calendar day
   is an event day. All game time is `America/New_York` via `Intl` (never hand-rolled offsets).
 - `lib/events.ts` — event engine. Invariant: `ensureEvents(2)` keeps the next 2 calendar

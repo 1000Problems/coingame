@@ -101,6 +101,14 @@ const statements = [
      created_at   timestamptz not null default now()
    )`,
   `create index if not exists coingame_outbox_due_idx on coingame_outbox (next_try_at) where delivered_at is null`,
+  // TASK-coingame-14a: read-through live-quote cache for the Kraken feed.
+  `create table if not exists coingame_quote (
+     symbol     text primary key,
+     price      numeric(20,8),
+     pct        numeric(10,4),
+     fetched_at timestamptz not null default 'epoch',
+     claim_at   timestamptz
+   )`,
 ];
 
 // ---- PREFIX GUARD ---------------------------------------------------------

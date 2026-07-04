@@ -4,6 +4,7 @@
 -- Two-places rule: every change here also lands as an idempotent statement in
 -- db/migrate-additive.mjs.
 
+drop table if exists coingame_quote cascade;
 drop table if exists coingame_outbox cascade;
 drop table if exists coingame_chat cascade;
 drop table if exists coingame_board cascade;
@@ -120,3 +121,14 @@ create table coingame_outbox (
   created_at   timestamptz not null default now()
 );
 create index coingame_outbox_due_idx on coingame_outbox (next_try_at) where delivered_at is null;
+
+-- Live-quote cache for the Kraken feed (TASK-coingame-14a). Read-through with
+-- ~20s TTL; claim_at is the single-flight fetch mutex (same conditional-UPDATE
+-- trick as coingame_event.claim_at). 'epoch' default = born stale.
+create table coingame_quote (
+  symbol     text primary key,
+  price      numeric(20,8),
+  pct        numeric(10,4),                    -- day change per Kraken ticker
+  fetched_at timestamptz not null default 'epoch',
+  claim_at   timestamptz
+);

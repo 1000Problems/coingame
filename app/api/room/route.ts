@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { currentSession } from "@/lib/token";
 import { ensureStartPrices, getEvent, phaseOf, poolFor } from "@/lib/events";
 import { hasLockedPick, lockedRoster } from "@/lib/picks";
-import { chatTail, finalBoard, liveStandings, quotesForPool } from "@/lib/room";
+import { chatTail, finalBoard, liveStandings, poolQuotes } from "@/lib/room";
 import { settleDueEventsInBackground } from "@/lib/adjudicate";
 
 export const dynamic = "force-dynamic";
@@ -47,11 +47,12 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Settle the 00:00 snapshot on the hot path (lazy-first, write-once) and
-  // hand the same map to standings + quotes so one poll is one read.
+  // Settle the 00:00 snapshot on the hot path (lazy-first, write-once), fetch
+  // quotes once, and hand the same maps to standings — one poll, one read.
   const startPrices = await ensureStartPrices(eventRef, event.event_date, now);
+  const { quotes, prices } = await poolQuotes(symbols, event, now, startPrices);
   const [standings, chat, roster] = await Promise.all([
-    liveStandings(session.roomId, event, now, startPrices),
+    liveStandings(session.roomId, event, now, startPrices, prices),
     chatTail(session.roomId, eventRef, after),
     lockedRoster(session.roomId, eventRef),
   ]);
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
     closed: false,
     eventDate: event.event_date,
     locksAt: event.locks_at,
-    quotes: quotesForPool(symbols, event.event_date, now, startPrices),
+    quotes,
     colors,
     standings,
     roster: roster.map((m) => ({ playerId: m.playerId, displayName: m.displayName, allocations: m.allocations })),

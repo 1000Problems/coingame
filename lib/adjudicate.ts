@@ -8,8 +8,7 @@
 // NEVER pushes game-close. The game is perpetual (design decision of record).
 
 import { sql } from "@/lib/db";
-import { ensureEvents, ensureStartPrices, type EventRow } from "@/lib/events";
-import { endPrice, startPrice } from "@/lib/prices";
+import { ensureEndPrices, ensureEvents, ensureStartPrices, type EventRow } from "@/lib/events";
 import { enqueueClose, flushOutbox } from "@/lib/outbox";
 import type { Allocation } from "@/lib/picks";
 
@@ -31,18 +30,22 @@ export async function settleAndClose(ref: string): Promise<{ ran: boolean }> {
     : String(e.event_date).slice(0, 10);
   const trophyLabel = String(e.trophy_label);
 
-  // 2) Settle prices into the pool snapshot. start_price: write-once at the
-  //    gun via ensureStartPrices (adjudication is only the backstop for events
-  //    nobody watched — TASK-coingame-13). end_price: idempotent overwrite —
-  //    the deterministic tape always returns the same numbers.
+  // 2) Settle prices into the pool snapshot — both write-once via the ensure
+  //    functions (TASK-coingame-13/14b). ALL-OR-ABORT: winners are never
+  //    called on partial data. If any pool symbol lacks a settled start or
+  //    end (feed unreachable), release the claim and let the next trigger —
+  //    a player poll or the daily sweep — retry. Candle-addressed prices
+  //    make the retry produce identical numbers whenever it lands.
   const startMap = await ensureStartPrices(ref, eventDate);
+  const endMap = await ensureEndPrices(ref, eventDate);
   const pool = await sql`select symbol from coingame_event_pool where event_ref = ${ref}`;
-  for (const row of pool) {
-    const symbol = String(row.symbol);
-    await sql`
-      update coingame_event_pool
-      set end_price = ${endPrice(symbol, eventDate)}
-      where event_ref = ${ref} and symbol = ${symbol}`;
+  const incomplete = pool.some((row) => {
+    const s = String(row.symbol);
+    return startMap[s] == null || endMap[s] == null;
+  });
+  if (incomplete) {
+    await sql`update coingame_event set claim_at = null where ref = ${ref}`;
+    return { ran: false };
   }
 
   // 3) Per instance with >= 1 LOCKED pick: compute board, insert write-once,
@@ -66,10 +69,10 @@ export async function settleAndClose(ref: string): Promise<{ ran: boolean }> {
       const allocations = p.allocations as Allocation[];
       let cents = 0;
       for (const a of allocations) {
-        // Settled snapshot first; tape only as a defensive fallback (picks are
-        // validated against the pool, so the map should always hit).
-        const start = startMap[a.symbol] ?? startPrice(a.symbol, eventDate);
-        const end = endPrice(a.symbol, eventDate);
+        // Both maps are complete past the guard above (picks are validated
+        // against the pool, so every symbol hits).
+        const start = startMap[a.symbol];
+        const end = endMap[a.symbol];
         cents += Math.round(a.units * 10000 * (end / start));
       }
       return {

@@ -4,7 +4,8 @@
 
 import { sql } from "@/lib/db";
 import { dateET, minuteOfDayET } from "@/lib/calendar";
-import { ensureStartPrices, type EventRow } from "@/lib/events";
+import { ensureEndPrices, ensureStartPrices, type EventRow } from "@/lib/events";
+import { cachedLiveQuotes, feedMode } from "@/lib/feed";
 import { pctChange, quoteAt, startPrice } from "@/lib/prices";
 import { lockedRoster, type Allocation } from "@/lib/picks";
 import { enqueueSpine, flushOutbox } from "@/lib/outbox";
@@ -25,12 +26,15 @@ export type StandingRow = {
 /**
  * Live portfolio value in cents. The ride is live from minute 0 of event_date
  * (lock = start gun); flat $1,000 only in the pre-game room before midnight.
- * `startPrices` (TASK-coingame-13) is the settled snapshot from
- * coingame_event_pool; the tape is only the fallback.
+ * `startPrices` is the settled 00:00 snapshot (TASK-coingame-13).
+ * `quotePrices` (TASK-coingame-14a) is the current real-feed price map —
+ * when provided it replaces the tape entirely; a coin missing either number
+ * contributes its flat notional (degraded, never NaN, never tape-mixed-with-real).
  */
 export function liveValueCents(
   allocations: Allocation[], eventDate: string, now = new Date(),
   startPrices?: Record<string, number>,
+  quotePrices?: Record<string, number>,
 ): number {
   const nowDate = dateET(now);
   if (nowDate < eventDate) return START_CENTS; // pre-game: hasn't started yet
@@ -39,9 +43,11 @@ export function liveValueCents(
   const priceMinute = nowDate === eventDate ? Math.min(minute, 960) : 960;
   let cents = 0;
   for (const a of allocations) {
-    const start = startPrices?.[a.symbol] ?? startPrice(a.symbol, eventDate);
-    const q = quoteAt(a.symbol, eventDate, priceMinute);
-    cents += Math.round(a.units * 10000 * (q / start));
+    const start = startPrices?.[a.symbol] ?? (quotePrices ? undefined : startPrice(a.symbol, eventDate));
+    const q = quotePrices ? quotePrices[a.symbol] : quoteAt(a.symbol, eventDate, priceMinute);
+    cents += start && q
+      ? Math.round(a.units * 10000 * (q / start))
+      : a.units * 10000; // no data yet: this leg rides flat
   }
   return cents;
 }
@@ -49,6 +55,7 @@ export function liveValueCents(
 export async function liveStandings(
   roomId: string, event: EventRow, now = new Date(),
   startPrices?: Record<string, number>,
+  quotePrices?: Record<string, number>,
 ): Promise<StandingRow[]> {
   const starts = startPrices ?? await ensureStartPrices(event.ref, event.event_date, now);
   const roster = await lockedRoster(roomId, event.ref);
@@ -58,7 +65,7 @@ export async function liveStandings(
     avatarUrl: m.avatarUrl,
     lockedAt: m.lockedAt,
     allocations: m.allocations,
-    valueCents: liveValueCents(m.allocations, event.event_date, now, starts),
+    valueCents: liveValueCents(m.allocations, event.event_date, now, starts, quotePrices),
   }));
   // value desc, earlier lock, then playerId — fully deterministic (ISO strings
   // truncate to ms; concurrent bot locks can collide).
@@ -78,29 +85,91 @@ export async function liveStandings(
   }));
 }
 
-export function quotesForPool(
-  symbols: string[], eventDate: string, now = new Date(),
+export type PoolQuote = {
+  symbol: string;
+  price: number;
+  pct: number;
+  startPrice: number | null;
+  pctFromStart: number | null;
+};
+
+function pctVs(price: number, base: number): number {
+  return Math.round(((price - base) / base) * 10000) / 100;
+}
+
+/**
+ * Quotes for a pool + the raw price map standings should be computed from.
+ * Kraken mode (TASK-coingame-14a/b): live cache during the ride and pre-game;
+ * settled end_price once past 16:00 — the last poll IS the adjudicated board.
+ * Symbols with no data yet are omitted (UI shows "—"). Tape mode: the
+ * original deterministic logic, `prices` undefined so liveValueCents stays
+ * on the tape.
+ */
+export async function poolQuotes(
+  symbols: string[], event: Pick<EventRow, "ref" | "event_date">, now = new Date(),
   startPrices?: Record<string, number>,
-) {
+): Promise<{ quotes: PoolQuote[]; prices?: Record<string, number> }> {
+  const eventDate = event.event_date;
   const nowDate = dateET(now);
   const minute = minuteOfDayET(now);
-  // Quote the event day's tape once it arrives (pinned to the 16:00 settle
-  // after the ride); before the event day, the live 24/7 tape of today.
-  const qDate = nowDate >= eventDate ? eventDate : nowDate;
-  const qMinute = nowDate > eventDate ? 960 : nowDate === eventDate ? Math.min(minute, 960) : minute;
   const started = nowDate >= eventDate; // the gun has fired
-  return symbols.map((s) => {
-    const price = quoteAt(s, qDate, qMinute);
-    const start = started ? startPrices?.[s] ?? startPrice(s, eventDate) : null;
-    return {
+
+  if (feedMode() === "tape") {
+    const qDate = started ? eventDate : nowDate;
+    const qMinute = nowDate > eventDate ? 960 : nowDate === eventDate ? Math.min(minute, 960) : minute;
+    const quotes = symbols.map((s) => {
+      const price = quoteAt(s, qDate, qMinute);
+      const start = started ? startPrices?.[s] ?? startPrice(s, eventDate) : null;
+      return {
+        symbol: s,
+        price,
+        pct: pctChange(s, qDate, qMinute),
+        startPrice: start,
+        pctFromStart: start == null ? null : pctVs(price, start),
+      };
+    });
+    return { quotes };
+  }
+
+  // ---- kraken ----
+  const ended = nowDate > eventDate || (nowDate === eventDate && minute >= 960);
+  const starts = started ? startPrices ?? {} : {};
+  let prices: Record<string, number> = {};
+  let dayPct: Record<string, number> = {};
+
+  if (ended) {
+    // Finish line passed: serve the settled candle prices, not the live tape.
+    const ends = await ensureEndPrices(event.ref, eventDate, now);
+    prices = ends;
+    // Any end price still unrecoverable (Kraken down): fall back to last cache
+    // for display so the room isn't blank; standings degrade the same way.
+    const missing = symbols.filter((s) => prices[s] == null);
+    if (missing.length) {
+      const cache = await cachedLiveQuotes(missing);
+      for (const s of missing) if (cache[s]) prices[s] = cache[s].price;
+    }
+  } else {
+    const cache = await cachedLiveQuotes(symbols);
+    for (const s of symbols) {
+      if (cache[s]) { prices[s] = cache[s].price; dayPct[s] = cache[s].pct; }
+    }
+  }
+
+  const quotes: PoolQuote[] = [];
+  for (const s of symbols) {
+    const price = prices[s];
+    if (price == null) continue; // no data at all yet — UI shows "—"
+    const start = starts[s] ?? null;
+    const pctFromStart = start == null ? null : pctVs(price, start);
+    quotes.push({
       symbol: s,
       price,
-      pct: pctChange(s, qDate, qMinute), // 24h ticker (crypto convention)
+      pct: dayPct[s] ?? pctFromStart ?? 0,
       startPrice: start,
-      // ± since the 00:00 snapshot — the number that reconciles with bag ±.
-      pctFromStart: start == null ? null : Math.round(((price - start) / start) * 10000) / 100,
-    };
-  });
+      pctFromStart,
+    });
+  }
+  return { quotes, prices };
 }
 
 // ---- chat -------------------------------------------------------------------
