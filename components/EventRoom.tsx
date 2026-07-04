@@ -5,7 +5,7 @@
 // Lock-gated server-side; this component assumes admission.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { priceLabel } from "@/lib/format";
+import { priceLabel, sortAllocations } from "@/lib/format";
 import { chipTextColor, FALLBACK_COIN_COLOR } from "@/lib/colors";
 import { COIN_INFO } from "@/lib/coininfo";
 import CoinCard from "@/components/CoinCard";
@@ -126,7 +126,7 @@ export default function EventRoom({
         {mine ? (
           <>
             <div className="splitbar" style={{ marginTop: 8 }}>
-              {mine.allocations.map((a) => (
+              {sortAllocations(mine.allocations).map((a) => (
                 <div
                   key={a.symbol}
                   className="seg"
@@ -154,7 +154,7 @@ export default function EventRoom({
         <div className="card">
           <h2>Your picks</h2>
           <div className="rows">
-            {mine.allocations.map((a) => {
+            {sortAllocations(mine.allocations).map((a) => {
               const q = data.quotes.find((x) => x.symbol === a.symbol);
               const hasInfo = Boolean(COIN_INFO[a.symbol]);
               return (
@@ -199,8 +199,9 @@ export default function EventRoom({
                   <span className="tiny" style={{ display: "block", fontWeight: 400 }}>🔒 {lockTimeET(s.lockedAt)}</span>
                 ) : null}
               </span>
+              {/* Canonical order at render too — covers bags locked pre-TASK-11. */}
               <span className="chips">
-                {s.allocations.map((a) => (
+                {sortAllocations(s.allocations).map((a) => (
                   <span
                     key={a.symbol}
                     className="chip"

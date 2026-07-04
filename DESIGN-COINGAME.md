@@ -18,7 +18,9 @@ widened to shrink identical-portfolio collisions, since PickCity needs exactly o
 and splits **$1,000 in $100 units** (10 units, each pick gets ≥1) across them — notional
 chips, so it never matters that a whole BTC costs six figures. The all-10 "index" pick
 is legal by decision of record: it forces 1 chip each, everyone who plays it ties, and
-the earliest-lock tiebreak settles it. Picks start as a **private draft**; hitting
+the earliest-lock tiebreak settles it. Bags always render in **canonical order** —
+units desc, ties alphabetical (TASK-coingame-11) — so identical portfolios look
+identical in every row of the standings. Picks start as a **private draft**; hitting
 **Lock it in** is the real, irreversible commit — and the ticket into that event's room
 (chat, roster, everyone else's picks). You can't see other people's selections until your
 own are locked, so nobody copies. **Midnight ET is the deadline AND the start gun**: at

@@ -9,6 +9,7 @@
 // stale UI can't slip a write through.
 
 import { sql } from "@/lib/db";
+import { sortAllocations } from "@/lib/format";
 import { enqueueSpine, flushOutbox } from "@/lib/outbox";
 
 export type Allocation = { symbol: string; units: number };
@@ -39,7 +40,9 @@ export function validateAllocations(raw: unknown, poolSymbols: Set<string>): { o
     out.push({ symbol, units });
   }
   if (total !== 10) return { ok: false, error: `units must sum to 10 (got ${total})` };
-  return { ok: true, allocations: out };
+  // Canonical order (TASK-coingame-11): stored bags, spine selection strings,
+  // and everything downstream inherit units desc → symbol asc.
+  return { ok: true, allocations: sortAllocations(out) };
 }
 
 export async function getPick(roomId: string, eventRef: string, playerId: string): Promise<PickRow | null> {

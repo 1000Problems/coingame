@@ -13,6 +13,15 @@ export function pctLabel(pct: number): string {
 }
 
 /**
+ * Canonical bag order (TASK-coingame-11): largest position first, ties
+ * alphabetical (= the pick-grid order). Every allocation render uses this so
+ * two identical bags look identical in the room. Pure — never mutates input.
+ */
+export function sortAllocations<T extends { symbol: string; units: number }>(allocs: T[]): T[] {
+  return [...allocs].sort((a, b) => b.units - a.units || a.symbol.localeCompare(b.symbol));
+}
+
+/**
  * Coin prices span $61,800 (BTC) to sub-cent memes — decimals are dynamic:
  * >= $1 → 2dp with thousands separators; < $1 → 4 significant digits
  * ($0.07570, $0.000004325). Chip math never touches this — display only.

@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { priceLabel } from "@/lib/format";
+import { priceLabel, sortAllocations } from "@/lib/format";
 import { chipTextColor, FALLBACK_COIN_COLOR } from "@/lib/colors";
 import { COIN_INFO } from "@/lib/coininfo";
 import CoinCard from "@/components/CoinCard";
@@ -86,13 +86,20 @@ export default function PickScreen({
   // Max 10 is self-capping: 10 coins × ≥1 chip = all 10 chips.
   const valid = selected.length >= MIN_COINS && used === TOTAL_UNITS;
 
-  // The 10 segments, filled in selection order: [{symbol}...] then nulls.
+  // Canonical bag order (TASK-coingame-11): biggest position first, ties
+  // alphabetical. Bar and legend re-order live as units change.
+  const ordered = useMemo(
+    () => sortAllocations([...alloc.entries()].map(([symbol, units]) => ({ symbol, units }))),
+    [alloc],
+  );
+
+  // The 10 segments in canonical order: [{symbol}...] then nulls.
   const segments = useMemo(() => {
     const out: (string | null)[] = [];
-    for (const [sym, units] of alloc) for (let i = 0; i < units; i++) out.push(sym);
+    for (const { symbol, units } of ordered) for (let i = 0; i < units; i++) out.push(symbol);
     while (out.length < TOTAL_UNITS) out.push(null);
     return out;
-  }, [alloc]);
+  }, [ordered]);
 
   const scheduleSave = useCallback((next: Map<string, number>) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -207,10 +214,10 @@ export default function PickScreen({
           )}
         </div>
         <div className="barlegend">
-          {selected.map((s) => (
-            <span key={s} className="legenditem">
-              <span className="swatch" style={{ background: colorOf(s) }} />
-              {s} ${(alloc.get(s) ?? 0) * 100}
+          {ordered.map((a) => (
+            <span key={a.symbol} className="legenditem">
+              <span className="swatch" style={{ background: colorOf(a.symbol) }} />
+              {a.symbol} ${a.units * 100}
             </span>
           ))}
         </div>
