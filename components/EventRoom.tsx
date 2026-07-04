@@ -16,7 +16,11 @@ type Standing = {
   valueCents: number; pct: number; placement: number; allocations: Alloc[];
   lockedAt: string | null;
 };
-type Quote = { symbol: string; price: number; pct: number };
+type Quote = {
+  symbol: string; price: number;
+  pct: number; // 24h ticker change
+  startPrice?: number | null; pctFromStart?: number | null; // TASK-coingame-13
+};
 type Msg = { id: string; playerId: string; displayName: string; body: string; createdAt: string };
 
 type RoomPayload = {
@@ -152,10 +156,19 @@ export default function EventRoom({
 
       {!data.closed && data.quotes.length && mine ? (
         <div className="card">
-          <h2>Your picks</h2>
+          {/* Once the gun fires, per-coin ± measures from the 00:00 snapshot —
+              the number that reconciles with the bag ± above. Pre-game it's
+              the 24h ticker (there is no "start" yet). */}
+          <h2>
+            Your picks{" "}
+            <span className="tiny" style={{ fontWeight: 400 }}>
+              {data.quotes.some((x) => x.pctFromStart != null) ? "± since the midnight start" : "± last 24h"}
+            </span>
+          </h2>
           <div className="rows">
             {sortAllocations(mine.allocations).map((a) => {
               const q = data.quotes.find((x) => x.symbol === a.symbol);
+              const shown = q ? q.pctFromStart ?? q.pct : null;
               const hasInfo = Boolean(COIN_INFO[a.symbol]);
               return (
                 <div
@@ -167,8 +180,8 @@ export default function EventRoom({
                   <span className="who">{a.symbol}</span>
                   <span className="tiny">${a.units * 100}</span>
                   <span className="val">{q ? priceLabel(q.price) : "—"}</span>
-                  <span className={`pct ${q && q.pct >= 0 ? "pos" : "neg"}`}>
-                    {q ? `${q.pct >= 0 ? "+" : ""}${q.pct.toFixed(2)}%` : ""}
+                  <span className={`pct ${shown != null && shown >= 0 ? "pos" : "neg"}`}>
+                    {shown != null ? `${shown >= 0 ? "+" : ""}${shown.toFixed(2)}%` : ""}
                   </span>
                 </div>
               );
@@ -250,6 +263,7 @@ export default function EventRoom({
           color={colorOf(infoFor)}
           price={data.quotes.find((q) => q.symbol === infoFor)?.price}
           pct={data.quotes.find((q) => q.symbol === infoFor)?.pct}
+          pctFromStart={data.quotes.find((q) => q.symbol === infoFor)?.pctFromStart ?? undefined}
           onClose={() => setInfoFor(null)}
         />
       ) : null}

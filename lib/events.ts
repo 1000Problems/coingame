@@ -7,7 +7,7 @@ import { sql } from "@/lib/db";
 import {
   labelFor, locksAt, nextDays, prevDay, settlesAt, shortLabelFor, todayET,
 } from "@/lib/calendar";
-import { endPrice } from "@/lib/prices";
+import { endPrice, startPrice } from "@/lib/prices";
 
 export type Phase = "open" | "locked" | "adjudicating" | "closed";
 
@@ -109,6 +109,34 @@ export function toWireEvent(e: EventRow, now = new Date()) {
 export async function openEvents(now = new Date()): Promise<EventRow[]> {
   const all = await eventsWindow();
   return all.filter((e) => phaseOf(e, now) === "open");
+}
+
+/**
+ * Settle 00:00 ET start prices at (or after) the gun — lazy-first, write-once
+ * (TASK-coingame-13). Called from hot reads; adjudication is the backstop.
+ * `start_price IS NULL` guard means first writer wins, which stays correct
+ * when the deterministic tape is swapped for a real feed. Returns symbol →
+ * start price: settled value if stored, tape fallback if not (yet) settled.
+ */
+export async function ensureStartPrices(
+  ref: string, eventDate: string, now = new Date(),
+): Promise<Record<string, number>> {
+  const rows = await sql`
+    select symbol, start_price from coingame_event_pool where event_ref = ${ref}`;
+  const started = now >= locksAt(eventDate);
+  const map: Record<string, number> = {};
+  for (const r of rows) {
+    const symbol = String(r.symbol);
+    if (r.start_price != null) { map[symbol] = Number(r.start_price); continue; }
+    const p = startPrice(symbol, eventDate);
+    if (started) {
+      await sql`
+        update coingame_event_pool set start_price = ${p}
+        where event_ref = ${ref} and symbol = ${symbol} and start_price is null`;
+    }
+    map[symbol] = p;
+  }
+  return map;
 }
 
 export async function poolFor(ref: string): Promise<{ symbol: string; ref_price: number | null; color: string }[]> {

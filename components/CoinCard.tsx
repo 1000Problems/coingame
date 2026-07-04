@@ -9,12 +9,13 @@ import { priceLabel } from "@/lib/format";
 import { chipTextColor } from "@/lib/colors";
 
 export default function CoinCard({
-  symbol, color, price, pct, onClose,
+  symbol, color, price, pct, pctFromStart, onClose,
 }: {
   symbol: string;
   color: string;
   price?: number;
   pct?: number;
+  pctFromStart?: number; // ± vs the 00:00 snapshot, only once the ride is on
   onClose: () => void;
 }) {
   const info = COIN_INFO[symbol];
@@ -40,6 +41,9 @@ export default function CoinCard({
               {priceLabel(price)}
               {pct !== undefined ? (
                 <span className="coincard-pct"> {pct >= 0 ? "+" : ""}{pct.toFixed(2)}% 24h</span>
+              ) : null}
+              {pctFromStart !== undefined ? (
+                <span className="coincard-pct"> · {pctFromStart >= 0 ? "+" : ""}{pctFromStart.toFixed(2)}% since start</span>
               ) : null}
             </span>
           ) : null}

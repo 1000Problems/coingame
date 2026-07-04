@@ -4,7 +4,7 @@
 // spectator-visible). Everything scoped (room_id, event_ref).
 import { NextRequest, NextResponse } from "next/server";
 import { currentSession } from "@/lib/token";
-import { getEvent, phaseOf, poolFor } from "@/lib/events";
+import { ensureStartPrices, getEvent, phaseOf, poolFor } from "@/lib/events";
 import { hasLockedPick, lockedRoster } from "@/lib/picks";
 import { chatTail, finalBoard, liveStandings, quotesForPool } from "@/lib/room";
 import { settleDueEventsInBackground } from "@/lib/adjudicate";
@@ -47,8 +47,11 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  // Settle the 00:00 snapshot on the hot path (lazy-first, write-once) and
+  // hand the same map to standings + quotes so one poll is one read.
+  const startPrices = await ensureStartPrices(eventRef, event.event_date, now);
   const [standings, chat, roster] = await Promise.all([
-    liveStandings(session.roomId, event, now),
+    liveStandings(session.roomId, event, now, startPrices),
     chatTail(session.roomId, eventRef, after),
     lockedRoster(session.roomId, eventRef),
   ]);
@@ -58,7 +61,7 @@ export async function GET(req: NextRequest) {
     closed: false,
     eventDate: event.event_date,
     locksAt: event.locks_at,
-    quotes: quotesForPool(symbols, event.event_date, now),
+    quotes: quotesForPool(symbols, event.event_date, now, startPrices),
     colors,
     standings,
     roster: roster.map((m) => ({ playerId: m.playerId, displayName: m.displayName, allocations: m.allocations })),

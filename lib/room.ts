@@ -4,7 +4,7 @@
 
 import { sql } from "@/lib/db";
 import { dateET, minuteOfDayET } from "@/lib/calendar";
-import type { EventRow } from "@/lib/events";
+import { ensureStartPrices, type EventRow } from "@/lib/events";
 import { pctChange, quoteAt, startPrice } from "@/lib/prices";
 import { lockedRoster, type Allocation } from "@/lib/picks";
 import { enqueueSpine, flushOutbox } from "@/lib/outbox";
@@ -25,9 +25,12 @@ export type StandingRow = {
 /**
  * Live portfolio value in cents. The ride is live from minute 0 of event_date
  * (lock = start gun); flat $1,000 only in the pre-game room before midnight.
+ * `startPrices` (TASK-coingame-13) is the settled snapshot from
+ * coingame_event_pool; the tape is only the fallback.
  */
 export function liveValueCents(
   allocations: Allocation[], eventDate: string, now = new Date(),
+  startPrices?: Record<string, number>,
 ): number {
   const nowDate = dateET(now);
   if (nowDate < eventDate) return START_CENTS; // pre-game: hasn't started yet
@@ -36,14 +39,18 @@ export function liveValueCents(
   const priceMinute = nowDate === eventDate ? Math.min(minute, 960) : 960;
   let cents = 0;
   for (const a of allocations) {
-    const start = startPrice(a.symbol, eventDate);
+    const start = startPrices?.[a.symbol] ?? startPrice(a.symbol, eventDate);
     const q = quoteAt(a.symbol, eventDate, priceMinute);
     cents += Math.round(a.units * 10000 * (q / start));
   }
   return cents;
 }
 
-export async function liveStandings(roomId: string, event: EventRow, now = new Date()): Promise<StandingRow[]> {
+export async function liveStandings(
+  roomId: string, event: EventRow, now = new Date(),
+  startPrices?: Record<string, number>,
+): Promise<StandingRow[]> {
+  const starts = startPrices ?? await ensureStartPrices(event.ref, event.event_date, now);
   const roster = await lockedRoster(roomId, event.ref);
   const rows = roster.map((m) => ({
     playerId: m.playerId,
@@ -51,7 +58,7 @@ export async function liveStandings(roomId: string, event: EventRow, now = new D
     avatarUrl: m.avatarUrl,
     lockedAt: m.lockedAt,
     allocations: m.allocations,
-    valueCents: liveValueCents(m.allocations, event.event_date, now),
+    valueCents: liveValueCents(m.allocations, event.event_date, now, starts),
   }));
   // value desc, earlier lock, then playerId — fully deterministic (ISO strings
   // truncate to ms; concurrent bot locks can collide).
@@ -71,18 +78,29 @@ export async function liveStandings(roomId: string, event: EventRow, now = new D
   }));
 }
 
-export function quotesForPool(symbols: string[], eventDate: string, now = new Date()) {
+export function quotesForPool(
+  symbols: string[], eventDate: string, now = new Date(),
+  startPrices?: Record<string, number>,
+) {
   const nowDate = dateET(now);
   const minute = minuteOfDayET(now);
   // Quote the event day's tape once it arrives (pinned to the 16:00 settle
   // after the ride); before the event day, the live 24/7 tape of today.
   const qDate = nowDate >= eventDate ? eventDate : nowDate;
   const qMinute = nowDate > eventDate ? 960 : nowDate === eventDate ? Math.min(minute, 960) : minute;
-  return symbols.map((s) => ({
-    symbol: s,
-    price: quoteAt(s, qDate, qMinute),
-    pct: pctChange(s, qDate, qMinute),
-  }));
+  const started = nowDate >= eventDate; // the gun has fired
+  return symbols.map((s) => {
+    const price = quoteAt(s, qDate, qMinute);
+    const start = started ? startPrices?.[s] ?? startPrice(s, eventDate) : null;
+    return {
+      symbol: s,
+      price,
+      pct: pctChange(s, qDate, qMinute), // 24h ticker (crypto convention)
+      startPrice: start,
+      // ± since the 00:00 snapshot — the number that reconciles with bag ±.
+      pctFromStart: start == null ? null : Math.round(((price - start) / start) * 10000) / 100,
+    };
+  });
 }
 
 // ---- chat -------------------------------------------------------------------

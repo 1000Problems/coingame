@@ -8,7 +8,7 @@
 // NEVER pushes game-close. The game is perpetual (design decision of record).
 
 import { sql } from "@/lib/db";
-import { ensureEvents, type EventRow } from "@/lib/events";
+import { ensureEvents, ensureStartPrices, type EventRow } from "@/lib/events";
 import { endPrice, startPrice } from "@/lib/prices";
 import { enqueueClose, flushOutbox } from "@/lib/outbox";
 import type { Allocation } from "@/lib/picks";
@@ -31,14 +31,17 @@ export async function settleAndClose(ref: string): Promise<{ ran: boolean }> {
     : String(e.event_date).slice(0, 10);
   const trophyLabel = String(e.trophy_label);
 
-  // 2) Settle start/end prices into the pool snapshot (idempotent overwrite —
-  //    the deterministic tape always returns the same numbers).
+  // 2) Settle prices into the pool snapshot. start_price: write-once at the
+  //    gun via ensureStartPrices (adjudication is only the backstop for events
+  //    nobody watched — TASK-coingame-13). end_price: idempotent overwrite —
+  //    the deterministic tape always returns the same numbers.
+  const startMap = await ensureStartPrices(ref, eventDate);
   const pool = await sql`select symbol from coingame_event_pool where event_ref = ${ref}`;
   for (const row of pool) {
     const symbol = String(row.symbol);
     await sql`
       update coingame_event_pool
-      set start_price = ${startPrice(symbol, eventDate)}, end_price = ${endPrice(symbol, eventDate)}
+      set end_price = ${endPrice(symbol, eventDate)}
       where event_ref = ${ref} and symbol = ${symbol}`;
   }
 
@@ -63,7 +66,9 @@ export async function settleAndClose(ref: string): Promise<{ ran: boolean }> {
       const allocations = p.allocations as Allocation[];
       let cents = 0;
       for (const a of allocations) {
-        const start = startPrice(a.symbol, eventDate);
+        // Settled snapshot first; tape only as a defensive fallback (picks are
+        // validated against the pool, so the map should always hit).
+        const start = startMap[a.symbol] ?? startPrice(a.symbol, eventDate);
         const end = endPrice(a.symbol, eventDate);
         cents += Math.round(a.units * 10000 * (end / start));
       }
