@@ -145,8 +145,10 @@ export default function EventRoom({
       holdBy.set(a.symbol, cur);
     }
   }
-  const coinsInPlay = [...holdBy.entries()]
-    .map(([symbol, h]) => {
+  const pool = Object.keys(data.colors);
+  const coinsInPlay = pool
+    .map((symbol) => {
+      const h = holdBy.get(symbol) ?? { count: 0, myUnits: 0 };
       const q = quoteBy.get(symbol);
       const perf = q ? q.pctFromStart ?? q.pct ?? null : null;
       return { symbol, count: h.count, myUnits: h.myUnits, q, perf };
@@ -190,11 +192,12 @@ export default function EventRoom({
 
       {!data.closed && coinsInPlay.length ? (
         <div className="card">
-          {/* Every coin anyone locked, best-performer first. Perf measures from
-              the 00:00 snapshot once the gun fires (reconciles with the bags),
-              else the 24h ticker. Your own picks are tinted + carry a "You" chip. */}
+          {/* The whole pool, best-performer first — so you can see the coins you
+              didn't take, too. Perf measures from the 00:00 snapshot once the gun
+              fires (reconciles with the bags), else the 24h ticker. Your own picks
+              are tinted + carry a "You" chip. */}
           <h2>
-            Coins in play{" "}
+            Every coin{" "}
             <span className="tiny" style={{ fontWeight: 400 }}>
               {perfFromStart ? "± since the midnight start" : "± last 24h"} · best to worst
             </span>
@@ -222,7 +225,7 @@ export default function EventRoom({
                     {c.symbol}
                   </span>
                   <span className="tiny" style={{ whiteSpace: "nowrap" }}>
-                    {c.count} holder{c.count === 1 ? "" : "s"}
+                    {c.count === 0 ? "no takers" : `${c.count} holder${c.count === 1 ? "" : "s"}`}
                   </span>
                   {mineCoin ? (
                     <span className="chip" style={{ background: color, color: chipTextColor(color) }}>
