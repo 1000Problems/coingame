@@ -131,6 +131,28 @@ export default function EventRoom({
     data.phase === "adjudicating" ? "4pm mark — settling the board…" :
     "Final board.";
 
+  // Coins in play: every coin anyone locked, best-performer first, with how many
+  // players hold it and my own stake (to mark mine). Perf reads from the 00:00
+  // start once the gun fires (reconciles with the bags), else the 24h ticker.
+  const perfFromStart = data.quotes.some((x) => x.pctFromStart != null);
+  const quoteBy = new Map(data.quotes.map((q) => [q.symbol, q]));
+  const holdBy = new Map<string, { count: number; myUnits: number }>();
+  for (const s of data.standings) {
+    for (const a of s.allocations) {
+      const cur = holdBy.get(a.symbol) ?? { count: 0, myUnits: 0 };
+      cur.count += 1;
+      if (s.playerId === me) cur.myUnits = a.units;
+      holdBy.set(a.symbol, cur);
+    }
+  }
+  const coinsInPlay = [...holdBy.entries()]
+    .map(([symbol, h]) => {
+      const q = quoteBy.get(symbol);
+      const perf = q ? q.pctFromStart ?? q.pct ?? null : null;
+      return { symbol, count: h.count, myUnits: h.myUnits, q, perf };
+    })
+    .sort((a, b) => (b.perf ?? -Infinity) - (a.perf ?? -Infinity));
+
   return (
     <>
       <div className="card">
@@ -166,34 +188,50 @@ export default function EventRoom({
         ) : null}
       </div>
 
-      {!data.closed && data.quotes.length && mine ? (
+      {!data.closed && coinsInPlay.length ? (
         <div className="card">
-          {/* Once the gun fires, per-coin ± measures from the 00:00 snapshot —
-              the number that reconciles with the bag ± above. Pre-game it's
-              the 24h ticker (there is no "start" yet). */}
+          {/* Every coin anyone locked, best-performer first. Perf measures from
+              the 00:00 snapshot once the gun fires (reconciles with the bags),
+              else the 24h ticker. Your own picks are tinted + carry a "You" chip. */}
           <h2>
-            Your picks{" "}
+            Coins in play{" "}
             <span className="tiny" style={{ fontWeight: 400 }}>
-              {data.quotes.some((x) => x.pctFromStart != null) ? "± since the midnight start" : "± last 24h"}
+              {perfFromStart ? "± since the midnight start" : "± last 24h"} · best to worst
             </span>
           </h2>
           <div className="rows">
-            {sortAllocations(mine.allocations).map((a) => {
-              const q = data.quotes.find((x) => x.symbol === a.symbol);
-              const shown = q ? q.pctFromStart ?? q.pct : null;
-              const hasInfo = Boolean(COIN_INFO[a.symbol]);
+            {coinsInPlay.map((c, i) => {
+              const color = colorOf(c.symbol);
+              const hasInfo = Boolean(COIN_INFO[c.symbol]);
+              const mineCoin = c.myUnits > 0;
               return (
                 <div
-                  key={a.symbol}
-                  className="row"
+                  key={c.symbol}
+                  className={`row${mineCoin ? " me" : ""}`}
                   style={hasInfo ? { cursor: "pointer" } : undefined}
-                  onClick={hasInfo ? () => setInfoFor(a.symbol) : undefined}
+                  onClick={hasInfo ? () => setInfoFor(c.symbol) : undefined}
                 >
-                  <span className="who">{a.symbol}</span>
-                  <span className="tiny">${a.units * 100}</span>
-                  <span className="val">{q ? priceLabel(q.price) : "—"}</span>
-                  <span className={`pct ${shown != null && shown >= 0 ? "pos" : "neg"}`}>
-                    {shown != null ? `${shown >= 0 ? "+" : ""}${shown.toFixed(2)}%` : ""}
+                  <span className="rank">{i + 1}</span>
+                  <span
+                    style={{
+                      background: color, color: chipTextColor(color),
+                      borderRadius: 7, padding: "3px 9px", fontWeight: 800,
+                      fontSize: 12.5, letterSpacing: ".2px", flexShrink: 0,
+                    }}
+                  >
+                    {c.symbol}
+                  </span>
+                  <span className="tiny" style={{ whiteSpace: "nowrap" }}>
+                    {c.count} holder{c.count === 1 ? "" : "s"}
+                  </span>
+                  {mineCoin ? (
+                    <span className="chip" style={{ background: color, color: chipTextColor(color) }}>
+                      You ${c.myUnits * 100}
+                    </span>
+                  ) : null}
+                  <span className="val">{c.q ? priceLabel(c.q.price) : "—"}</span>
+                  <span className={`pct ${c.perf != null && c.perf >= 0 ? "pos" : "neg"}`}>
+                    {c.perf != null ? `${c.perf >= 0 ? "+" : ""}${c.perf.toFixed(2)}%` : ""}
                   </span>
                 </div>
               );
