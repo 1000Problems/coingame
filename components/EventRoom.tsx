@@ -218,20 +218,23 @@ export default function EventRoom({
                   <span
                     style={{
                       background: color, color: chipTextColor(color),
-                      borderRadius: 7, padding: "3px 9px", fontWeight: 800,
+                      borderRadius: 7, padding: "3px 0", fontWeight: 800,
                       fontSize: 12.5, letterSpacing: ".2px", flexShrink: 0,
+                      minWidth: 52, textAlign: "center",
                     }}
                   >
                     {c.symbol}
                   </span>
-                  <span className="tiny" style={{ whiteSpace: "nowrap" }}>
+                  <span className="tiny" style={{ flex: "0 0 78px", whiteSpace: "nowrap" }}>
                     {c.count === 0 ? "no takers" : `${c.count} holder${c.count === 1 ? "" : "s"}`}
                   </span>
-                  {mineCoin ? (
-                    <span className="chip" style={{ background: color, color: chipTextColor(color) }}>
-                      You ${c.myUnits * 100}
-                    </span>
-                  ) : null}
+                  <span style={{ flex: "0 0 76px" }}>
+                    {mineCoin ? (
+                      <span className="chip" style={{ background: color, color: chipTextColor(color) }}>
+                        You ${c.myUnits * 100}
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="val">{c.q ? priceLabel(c.q.price) : "—"}</span>
                   <span className={`pct ${c.perf != null && c.perf >= 0 ? "pos" : "neg"}`}>
                     {c.perf != null ? `${c.perf >= 0 ? "+" : ""}${c.perf.toFixed(2)}%` : ""}

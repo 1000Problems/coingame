@@ -93,12 +93,12 @@ body {
 }
 .row:last-child { border-bottom: 0; }
 .row .rank { width: 24px; color: var(--ink-2); font-weight: 700; font-variant-numeric: tabular-nums; }
-.row .who { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .who { font-weight: 600; flex: 0 0 132px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .chips { display: flex; gap: 4px; margin-left: 6px; }
 .chip { font-size: 11px; background: var(--accent-soft); color: var(--accent); border-radius: 6px; padding: 2px 6px; font-weight: 700; }
 .row .val { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 700; }
 .row .pct { width: 66px; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
-.row.me { background: linear-gradient(90deg, var(--accent-soft), transparent); border-radius: 8px; padding-left: 6px; }
+.row.me { background: linear-gradient(90deg, var(--accent-soft), transparent); border-radius: 8px; margin: 0 -6px; padding-left: 6px; padding-right: 6px; }
 .row.winner .who { color: var(--gold); }
 
 /* Identity avatars (TASK-coingame-15): ring = biggest holding's coin color,
