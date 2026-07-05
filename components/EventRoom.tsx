@@ -121,6 +121,13 @@ export default function EventRoom({
   // from sortAllocations breaks ties). No bag data → neutral ring.
   const ringOf = (allocs: Alloc[]) =>
     allocs.length ? colorOf(sortAllocations(allocs)[0].symbol) : "var(--line)";
+  // Any coin anywhere opens its card — but only if there's editorial copy for it.
+  const hasInfoFor = (s: string) => Boolean(COIN_INFO[s]);
+  const openCard = (e: React.MouseEvent, s: string) => {
+    if (!hasInfoFor(s)) return;
+    e.stopPropagation();
+    setInfoFor(s);
+  };
   // Chat wears the same identity: avatar/ring/rank come from standings —
   // chat is lock-gated, so every chatter is on the board (no API change).
   const byId = new Map(data.standings.map((s) => [s.playerId, s]));
@@ -167,7 +174,8 @@ export default function EventRoom({
                 <div
                   key={a.symbol}
                   className="seg"
-                  style={{ width: `${a.units * 10}%`, background: colorOf(a.symbol), color: chipTextColor(colorOf(a.symbol)) }}
+                  style={{ width: `${a.units * 10}%`, background: colorOf(a.symbol), color: chipTextColor(colorOf(a.symbol)), cursor: hasInfoFor(a.symbol) ? "pointer" : undefined }}
+                  onClick={(e) => openCard(e, a.symbol)}
                 >
                   {a.symbol} ${a.units * 100}
                 </div>
@@ -291,7 +299,8 @@ export default function EventRoom({
                   <span
                     key={a.symbol}
                     className="chip"
-                    style={{ background: colorOf(a.symbol), color: chipTextColor(colorOf(a.symbol)) }}
+                    style={{ background: colorOf(a.symbol), color: chipTextColor(colorOf(a.symbol)), cursor: hasInfoFor(a.symbol) ? "pointer" : undefined }}
+                    onClick={(e) => openCard(e, a.symbol)}
                   >
                     {a.symbol} {a.units}
                   </span>
