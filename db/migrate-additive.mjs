@@ -101,6 +101,8 @@ const statements = [
      created_at   timestamptz not null default now()
    )`,
   `create index if not exists coingame_outbox_due_idx on coingame_outbox (next_try_at) where delivered_at is null`,
+  // TASK-coingame-17: 4xx responses dead-letter the row (never retried).
+  `alter table coingame_outbox add column if not exists dead_at timestamptz`,
   // TASK-coingame-14a: read-through live-quote cache for the Kraken feed.
   `create table if not exists coingame_quote (
      symbol     text primary key,

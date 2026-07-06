@@ -118,6 +118,7 @@ create table coingame_outbox (
   attempts     int not null default 0,
   next_try_at  timestamptz not null default now(),
   delivered_at timestamptz,
+  dead_at      timestamptz,                     -- 4xx dead-letter: never retried
   created_at   timestamptz not null default now()
 );
 create index coingame_outbox_due_idx on coingame_outbox (next_try_at) where delivered_at is null;

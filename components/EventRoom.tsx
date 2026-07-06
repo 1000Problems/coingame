@@ -313,7 +313,7 @@ export default function EventRoom({
         </div>
       </div>
 
-      {data.me.locked && !data.closed ? (
+      {data.me.locked ? (
         <div className="card">
           <h2>Room chat</h2>
           <div className="chatbox">
@@ -352,7 +352,7 @@ export default function EventRoom({
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="Say something…"
+              placeholder={data.closed ? "Gloat, congratulate, commiserate…" : "Say something…"}
               maxLength={500}
             />
             <button type="submit">Send</button>

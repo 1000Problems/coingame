@@ -52,7 +52,7 @@ export async function flushOutbox(limit = 20): Promise<{ sent: number; failed: n
     select o.id, o.kind, o.room_id, o.payload, o.attempts, i.host_origin
     from coingame_outbox o
     join coingame_instance i on i.room_id = o.room_id
-    where o.delivered_at is null and o.next_try_at <= now()
+    where o.delivered_at is null and o.dead_at is null and o.next_try_at <= now()
     order by o.created_at asc
     limit ${limit}`;
 
@@ -63,6 +63,8 @@ export async function flushOutbox(limit = 20): Promise<{ sent: number; failed: n
     const path = row.kind === "close" ? "/api/rooms/close" : "/api/rooms/spine";
     const url = String(row.host_origin).replace(/\/+$/, "") + path;
     let ok = false;
+    let status = 0; // 0 = network error / timeout (retryable)
+    let deadBody = "";
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 5000);
@@ -75,12 +77,25 @@ export async function flushOutbox(limit = 20): Promise<{ sent: number; failed: n
       });
       clearTimeout(timer);
       ok = res.ok;
+      status = res.status;
+      if (!ok && status >= 400 && status < 500) {
+        deadBody = await res.text().catch(() => "");
+      }
     } catch {
       ok = false;
+      status = 0;
     }
     if (ok) {
       sent++;
       await sql`update coingame_outbox set delivered_at = now() where id = ${row.id}`;
+    } else if (status >= 400 && status < 500) {
+      // Host rejected the payload outright (4xx). Retrying a byte-identical
+      // body would hammer forever — dead-letter the row and never retry.
+      failed++;
+      console.error(
+        `[outbox] DEAD-LETTER kind=${row.kind} room_id=${row.room_id} status=${status} body=${deadBody.slice(0, 500)}`,
+      );
+      await sql`update coingame_outbox set dead_at = now() where id = ${row.id}`;
     } else {
       failed++;
       const wait = backoffSeconds(Number(row.attempts));

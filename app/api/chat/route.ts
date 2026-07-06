@@ -1,8 +1,11 @@
 // POST /api/chat — locked players only; per (room_id, event_ref); every
-// message goes up the spine as chat_sent.
+// message goes up the spine as chat_sent. Chat stays open AFTER close
+// (TASK-coingame-16): the room is a place, not a countdown — winners gloat,
+// everyone else congratulates/commiserates. The `locked` gate is the only
+// membership check; phase does not gate posting.
 import { NextRequest, NextResponse } from "next/server";
 import { currentSession } from "@/lib/token";
-import { getEvent, phaseOf } from "@/lib/events";
+import { getEvent } from "@/lib/events";
 import { hasLockedPick } from "@/lib/picks";
 import { postChat } from "@/lib/room";
 
@@ -21,7 +24,6 @@ export async function POST(req: NextRequest) {
   const eventRef = typeof body.eventRef === "string" ? body.eventRef : "";
   const event = await getEvent(eventRef);
   if (!event) return NextResponse.json({ error: "unknown event" }, { status: 404 });
-  if (phaseOf(event) === "closed") return NextResponse.json({ error: "event is closed" }, { status: 409 });
 
   const locked = await hasLockedPick(session.roomId, eventRef, session.playerId);
   if (!locked) return NextResponse.json({ error: "lock your picks to chat" }, { status: 403 });
